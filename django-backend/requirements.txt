@@ -1,0 +1,10 @@
+django
+django-environ
+psycopg2-binary
+djangorestframework
+django-cors-headers
+djangorestframework-simplejwt
+
+google-auth
+google-auth-httplib2
+google-auth-oauthlib
