@@ -5,6 +5,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
+import pyotp
+import qrcode
+import base64
+from io import BytesIO
+
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
@@ -122,7 +127,6 @@ class ResendOTPView(APIView):
         )
 
 class LoginView(APIView):
-    
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -131,15 +135,24 @@ class LoginView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         user = serializer.validated_data["user"]
-        tokens = get_tokens_for_user(user)
 
+        
+        if user.is_mfa_enabled:
+            return Response({
+                "mfa_required": True,
+                "email": user.email,
+                "message": "Step 2: Enter Authenticator Code"
+            }, status=status.HTTP_200_OK)
+        
+
+        
+        tokens = get_tokens_for_user(user)
         response = Response({
             "message": "Login successful.",
             "user": get_user_data(user),
         }, status=status.HTTP_200_OK)
 
         return set_auth_cookies(response, tokens)
-    
 
 class GoogleLoginView(APIView):
     permission_classes = [AllowAny]
@@ -150,19 +163,16 @@ class GoogleLoginView(APIView):
             return Response({"error": "Token is required"}, status=400)
 
         try:
-          
             id_info = id_token.verify_oauth2_token(
                 token, 
                 google_requests.Request(), 
                 settings.GOOGLE_CLIENT_ID
             )
 
-            
             email = id_info.get('email')
             first_name = id_info.get('given_name', '')
             last_name = id_info.get('family_name', '')
 
-            
             user, created = User.objects.get_or_create(
                 email=email,
                 defaults={
@@ -172,7 +182,15 @@ class GoogleLoginView(APIView):
                 }
             )
 
-            
+            #  Intercept for MFA 
+            if user.is_mfa_enabled:
+                return Response({
+                    "mfa_required": True,
+                    "email": user.email,
+                    "message": "Step 2: Enter Authenticator Code"
+                }, status=status.HTTP_200_OK)
+          
+
             tokens = get_tokens_for_user(user)
             
             response = Response({
@@ -181,12 +199,11 @@ class GoogleLoginView(APIView):
                 "is_new_user": created
             }, status=status.HTTP_200_OK)
 
-           
             return set_auth_cookies(response, tokens)
 
         except ValueError:
             return Response({"error": "Invalid Google token"}, status=400)
-
+        
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -210,3 +227,82 @@ class MeView(APIView):
 
     def get(self, request):
         return Response(get_user_data(request.user), status=status.HTTP_200_OK)
+
+
+class SetupMFAView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        
+       
+        if not user.mfa_secret:
+            user.mfa_secret = pyotp.random_base32()
+            user.save()
+
+        totp = pyotp.TOTP(user.mfa_secret)
+         
+        uri = totp.provisioning_uri(name=user.email, issuer_name="AION CORE")
+
+        img = qrcode.make(uri)
+        buffered = BytesIO()
+        img.save(buffered, format="PNG")
+        qr_base64 = base64.b64encode(buffered.getvalue()).decode()
+
+        return Response({
+            "qr_code": f"data:image/png;base64,{qr_base64}",
+            "secret": user.mfa_secret 
+        })
+
+class ActivateMFAView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        code = request.data.get("code")
+        user = request.user
+        
+        if not user.mfa_secret:
+            return Response({"error": "MFA Setup not initiated."}, status=400)
+
+        totp = pyotp.TOTP(user.mfa_secret)
+        
+        
+        if totp.verify(code):
+            user.is_mfa_enabled = True
+            user.save()
+            return Response({"message": "MFA activated successfully.", "is_mfa_enabled": True})
+        
+        return Response({"error": "Invalid code. Identity not verified."}, status=400)
+
+class VerifyMFALoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get("email")
+        code = request.data.get("code")
+
+        if not email or not code:
+            return Response({"error": "Email and code are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not user.is_mfa_enabled or not user.mfa_secret:
+            return Response({"error": "MFA is not enabled for this account."}, status=status.HTTP_400_BAD_REQUEST)
+
+        totp = pyotp.TOTP(user.mfa_secret)
+        
+        # Verify the 6-digit code
+        if totp.verify(code):
+            
+            tokens = get_tokens_for_user(user)
+            response = Response({
+                "message": "Login successful.",
+                "user": get_user_data(user),
+            }, status=status.HTTP_200_OK)
+
+            return set_auth_cookies(response, tokens)
+
+        return Response({"error": "Invalid authenticator code."}, status=status.HTTP_400_BAD_REQUEST)

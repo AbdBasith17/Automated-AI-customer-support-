@@ -28,6 +28,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active   = models.BooleanField(default=True)
     is_staff    = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
+    mfa_secret =  models.CharField(max_length=32, blank=True, null=True)
+    is_mfa_enabled = models.BooleanField(default=False)
 
     objects = UserManager()
 

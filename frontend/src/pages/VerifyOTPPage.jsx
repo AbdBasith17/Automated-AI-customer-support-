@@ -58,7 +58,7 @@ export default function VerifyOTPPage() {
     inputRefs.current[nextIndex]?.focus();
   }
 
-  async function handleSubmit(e) {
+async function handleSubmit(e) {
     e.preventDefault();
     const code = otp.join("");
     if (code.length < 6) {
@@ -75,8 +75,16 @@ export default function VerifyOTPPage() {
       return;
     }
 
+   
     setUser(data.user);
-    navigate("/#support"); // Direct handshake with the support assistant
+
+   
+    toast.success("Identity Verified", {
+      description: "Welcome back, Operator."
+    });
+
+    
+    navigate("/chat"); 
   }
 
   async function handleResend() {

@@ -13,25 +13,29 @@ export function AuthProvider({ children }) {
 
   /**
    * Restores session by calling the /me/ endpoint.
-   * Wrapped in try/catch to handle 401 (Unauthorized) or CORS errors gracefully.
+   * Wrapped in try/catch to handle 401 (Unauthorized) or CORS errors
    */
   const checkSession = useCallback(async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await authApi.getMe();
-
-      if (data?.user) {
-        setUser(data.user);
+  let isMounted = true; 
+  
+  try {
+    const { data } = await authApi.getMe();
+    
+    if (isMounted) {
+      if (data && (data.user || data.email)) {
+        setUser(data.user || data);
       } else {
         setUser(null);
       }
-    } catch (err) {
-      // Silently fail: usually means the user just isn't logged in
-      setUser(null);
-    } finally {
-      setLoading(false);
     }
-  }, []);
+  } catch (err) {
+    if (isMounted) setUser(null);
+  } finally {
+    if (isMounted) setLoading(false);
+  }
+
+  return () => { isMounted = false; };
+}, []);
 
   // Run session check on initial mount
   useEffect(() => {
@@ -65,21 +69,18 @@ export function AuthProvider({ children }) {
   };
 
   /**
-   * Logout: Clears state and notifies backend to remove HttpOnly cookies
+   * Logout: Clears state
    */
   const logout = async () => {
     try {
       await authApi.logout();
     } finally {
       setUser(null);
-      // Optional: Clear any local storage flags if you use them
+      
     }
   };
 
-  /**
-   * useMemo prevents unnecessary re-renders of the entire app 
-   * unless the user or loading state actually changes.
-   */
+  
   const contextValue = useMemo(() => ({
     user,
     loading,
@@ -97,7 +98,7 @@ export function AuthProvider({ children }) {
       {!loading ? (
         children
       ) : (
-        /* Global Loading Spinner for Initial Session Check */
+        
         <div className="flex h-screen w-full flex-col items-center justify-center bg-gray-50">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
           <p className="mt-4 text-sm font-medium text-gray-500">Restoring session...</p>

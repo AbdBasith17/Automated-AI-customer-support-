@@ -19,4 +19,6 @@ def get_user_data(user):
         "first_name": user.first_name,
         "last_name":  user.last_name,
         "role":       user.role,
+        "is_verified":  user.is_verified,
+        "is_mfa_enabled": user.is_mfa_enabled,
     }

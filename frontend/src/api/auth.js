@@ -1,10 +1,6 @@
-/**
- * API calls for the Enterprise Support Project.
- * Optimized for Vite + React.
- */
 
-// Vite uses import.meta.env instead of process.env
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/auth";
+
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:9001/api/auth";
 
 async function request(endpoint, options = {}) {
   try {
@@ -14,17 +10,14 @@ async function request(endpoint, options = {}) {
       ...options,
     });
 
-    
     if (response.status === 204) {
       return { data: { success: true }, error: null };
     }
 
-    
     const text = await response.text();
     const data = text ? JSON.parse(text) : {};
 
     if (!response.ok) {
-      
       return { data: null, error: data };
     }
 
@@ -39,6 +32,7 @@ async function request(endpoint, options = {}) {
 }
 
 export const authApi = {
+  // --- EXISTING AUTH ---
   register: (firstName, lastName, email, password, password2) =>
     request("/register/", {
       method: "POST",
@@ -56,7 +50,7 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify({ 
         email, 
-        otp: otpCode 
+        otp_code: otpCode 
       }),
     }),
 
@@ -86,4 +80,24 @@ export const authApi = {
 
   refreshToken: () =>
     request("/token/refresh/", { method: "POST" }),
+
+  // --- NEW MFA COMPONENTS ---
+
+  
+  setupMfa: () => 
+    request("/mfa/setup/", { method: "GET" }),
+
+  
+  activateMfa: (code) =>
+    request("/mfa/activate/", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
+
+  
+  verifyMfaLogin: (email, code) =>
+    request("/mfa/verify-login/", {
+      method: "POST",
+      body: JSON.stringify({ email, code }),
+    }),
 };
