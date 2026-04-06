@@ -14,9 +14,17 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
 from .models import OTPVerification, User
-from .serializers import LoginSerializer, RegisterSerializer, ResendOTPSerializer, VerifyOTPSerializer
+from .serializers import (LoginSerializer, 
+                        RegisterSerializer,
+                        ResendOTPSerializer, 
+                        VerifyOTPSerializer,
+                        ResetPasswordConfirmSerializer,)
 from .helpers import get_tokens_for_user, get_user_data
-from .utils import generate_otp, send_otp_email
+from .utils import generate_otp, send_otp_email,send_password_reset_email
+
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
 
 
 def set_auth_cookies(response, tokens):
@@ -294,7 +302,7 @@ class VerifyMFALoginView(APIView):
 
         totp = pyotp.TOTP(user.mfa_secret)
         
-        # Verify the 6-digit code
+       
         if totp.verify(code):
             
             tokens = get_tokens_for_user(user)
@@ -306,3 +314,67 @@ class VerifyMFALoginView(APIView):
             return set_auth_cookies(response, tokens)
 
         return Response({"error": "Invalid authenticator code."}, status=status.HTTP_400_BAD_REQUEST)
+    
+
+
+class RequestPasswordResetView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email')
+        
+        if not email:
+            return Response({"error": "Email is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            
+            return Response(
+                {"message": "Identity not found in AION database."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        #  secure components
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+
+        
+        frontend_url = settings.FRONTEND_URL
+        reset_link = f"{frontend_url}/reset-password/{uid}/{token}"
+
+        try:
+            send_password_reset_email(user.email, user.first_name, reset_link)
+            return Response({"message": "Recovery link dispatched."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {"error": "Mail server handshake failed."}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class ResetPasswordConfirmView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ResetPasswordConfirmSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        uidb64 = serializer.validated_data['uid']
+        token = serializer.validated_data['token']
+        new_password = serializer.validated_data['new_password']
+
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            return Response({"error": "Invalid or corrupted identity link."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not default_token_generator.check_token(user, token):
+            return Response({"error": "Link has expired or is invalid."}, status=status.HTTP_400_BAD_REQUEST)
+
+        
+        user.set_password(new_password)
+        user.save()
+
+        return Response({"message": "Password updated. Access restored."}, status=status.HTTP_200_OK)

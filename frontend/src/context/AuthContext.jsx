@@ -46,27 +46,22 @@ export function AuthProvider({ children }) {
    * Standard Email/Password Login
    */
   const login = async (email, password) => {
-    const { data, error } = await authApi.login(email, password);
-    if (data?.user) {
-      setUser(data.user);
-    }
-    return { data, error };
-  };
+  const { data, error } = await authApi.login(email, password);
+  if (data?.user) {
+    // Force the state update
+    setUser(data.user);
+  }
+  // Return the full data so the component knows the role IMMEDIATELY
+  return { data, error };
+};
 
-  /**
-   * Google OAuth Login
-   */
-  const loginWithGoogle = async (googleToken) => {
-    try {
-      const { data, error } = await authApi.googleLogin(googleToken);
-      if (data?.user) {
-        setUser(data.user);
-      }
-      return { data, error };
-    } catch (err) {
-      return { data: null, error: "Google login failed. Please try again." };
-    }
-  };
+const loginWithGoogle = async (googleToken) => {
+  const { data, error } = await authApi.googleLogin(googleToken);
+  if (data?.user) {
+    setUser(data.user);
+  }
+  return { data, error };
+};
 
   /**
    * Logout: Clears state

@@ -1,103 +1,102 @@
-
+import axios from "axios";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:9001/api/auth";
 
-async function request(endpoint, options = {}) {
+
+const api = axios.create({
+  baseURL: BASE_URL,
+  withCredentials: true,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+
+async function request(config) {
   try {
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
-      headers: { "Content-Type": "application/json" },
-      credentials: "include", 
-      ...options,
-    });
-
-    if (response.status === 204) {
-      return { data: { success: true }, error: null };
-    }
-
-    const text = await response.text();
-    const data = text ? JSON.parse(text) : {};
-
-    if (!response.ok) {
-      return { data: null, error: data };
-    }
-
-    return { data, error: null };
+    const response = await api(config);
+    return { data: response.data, error: null };
   } catch (err) {
-    console.error("API Fetch Error:", err);
-    return { 
-      data: null, 
-      error: { message: "Network error. Is the backend running at " + BASE_URL + "?" } 
+    console.error("API Error:", err.response || err.message);
+    return {
+      data: null,
+      error: err.response?.data || { message: "Network handshake failed." },
     };
   }
 }
 
 export const authApi = {
-  // --- EXISTING AUTH ---
+  // --- AUTHENTICATION ---
   register: (firstName, lastName, email, password, password2) =>
-    request("/register/", {
+    request({
       method: "POST",
-      body: JSON.stringify({
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        password,
-        password2,
-      }),
+      url: "/register/",
+      data: { first_name: firstName, last_name: lastName, email, password, password2 },
     }),
 
   verifyOtp: (email, otpCode) =>
-    request("/verify-otp/", {
+    request({
       method: "POST",
-      body: JSON.stringify({ 
-        email, 
-        otp_code: otpCode 
-      }),
+      url: "/verify-otp/",
+      data: { email, otp_code: otpCode },
     }),
 
   resendOtp: (email) =>
-    request("/resend-otp/", {
+    request({
       method: "POST",
-      body: JSON.stringify({ email }),
+      url: "/resend-otp/",
+      data: { email },
     }),
 
   login: (email, password) =>
-    request("/login/", {
+    request({
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      url: "/login/",
+      data: { email, password },
     }),
 
-  googleLogin: (googleToken) =>
-    request("/google/", {
-      method: "POST",
-      body: JSON.stringify({ token: googleToken }),
-    }),
+  googleLogin: (payload) => 
+  request({
+    method: "POST",
+    url: "/google/",
+    data: payload, 
+  }),
 
-  logout: () =>
-    request("/logout/", { method: "POST" }),
+  logout: () => request({ method: "POST", url: "/logout/" }),
 
-  getMe: () =>
-    request("/me/", { method: "GET" }),
+  getMe: () => request({ method: "GET", url: "/me/" }),
 
-  refreshToken: () =>
-    request("/token/refresh/", { method: "POST" }),
+  refreshToken: () => request({ method: "POST", url: "/token/refresh/" }),
 
-  // --- NEW MFA COMPONENTS ---
+  // --- MFA ---
+  setupMfa: () => request({ method: "GET", url: "/mfa/setup/" }),
 
-  
-  setupMfa: () => 
-    request("/mfa/setup/", { method: "GET" }),
-
-  
   activateMfa: (code) =>
-    request("/mfa/activate/", {
+    request({
       method: "POST",
-      body: JSON.stringify({ code }),
+      url: "/mfa/activate/",
+      data: { code },
     }),
 
-  
   verifyMfaLogin: (email, code) =>
-    request("/mfa/verify-login/", {
+    request({
       method: "POST",
-      body: JSON.stringify({ email, code }),
+      url: "/mfa/verify-login/",
+      data: { email, code },
+    }),
+
+  // --- PASSWORD RECOVERY ---
+  forgotPassword: (email) =>
+    request({
+      method: "POST",
+      url: "/password-reset/",
+      data: { email },
+    }),
+
+  resetPasswordConfirm: (uid, token, new_password, confirm_password) =>
+    request({
+      method: "POST",
+      url: "/password-reset-confirm/",
+      data: { uid, token, new_password, confirm_password },
     }),
 };

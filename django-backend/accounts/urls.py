@@ -12,6 +12,8 @@ from .views import (
     SetupMFAView,
     ActivateMFAView,
     VerifyMFALoginView,
+    RequestPasswordResetView,
+    ResetPasswordConfirmView
 )
 
 urlpatterns = [
@@ -24,6 +26,9 @@ urlpatterns = [
     path("token/refresh/",  TokenRefreshView.as_view(),   name="token-refresh"),
     path("google/",         GoogleLoginView.as_view(),    name="google_login"),
     path("me/",             MeView.as_view(),             name="me"),
+
+    path('password-reset/', RequestPasswordResetView.as_view(), name='password_reset_request'),
+    path('password-reset-confirm/', ResetPasswordConfirmView.as_view(), name='password_reset_confirm'),
     
     
     path("mfa/setup/",      SetupMFAView.as_view(),       name="mfa-setup"),

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { authApi } from "../api/auth"; // Import the updated authApi
+import { authApi } from "../api/auth";
 import AuthLayout from "../components/AuthLayout";
 import { GoogleLogin } from "@react-oauth/google";
 import { toast } from "sonner";
@@ -13,79 +13,97 @@ export default function LoginPage() {
   // State Management
   const [form, setForm] = useState({ email: "", password: "" });
   const [mfaCode, setMfaCode] = useState("");
-  const [isMfaStep, setIsMfaStep] = useState(false); 
+  const [isMfaStep, setIsMfaStep] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
 
-    // Initial Login Step
-    const { data, error: loginError } = await login(form.email, form.password);
 
-    if (loginError) {
-      setLoading(false);
-      setError(loginError.message || "Access Denied: Invalid Credentials.");
-      return;
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setError("");
+  setLoading(true);
+
+  const { data, error: loginError } = await login(form.email, form.password);
+
+  if (loginError) {
+    setLoading(false);
+    setError(loginError.message);
+    return;
+  }
+
+  if (data?.mfa_required) {
+    setIsMfaStep(true);
+    setLoading(false);
+    return;
+  }
+
+  if (data?.user) {
+    toast.success("Authentication Successful");
+    
+    
+    console.log("Is Staff:", data.user.is_staff);
+
+   
+    if (data.user.is_staff) {
+      navigate("/admin", { replace: true });
+    } else {
+      navigate("/chat", { replace: true });
     }
+  }
+};
+const handleMfaVerify = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setError("");
+
+  const { data, error: mfaError } = await authApi.verifyMfaLogin(form.email, mfaCode);
+  setLoading(false);
+
+  if (mfaError) {
+    setError(mfaError.message || "Invalid Authenticator Code.");
+    return;
+  }
+
+  if (data?.user) {
+    setUser(data.user);
+    toast.success("Identity Confirmed");
+    
+    navigate(data.user.is_staff ? "/admin" : "/chat");
+  }
+};
+
+
+const handleGoogleSuccess = async (credentialResponse) => {
+  setLoading(true);
+  const { data, error: googleError } = await authApi.googleLogin({ 
+    token: credentialResponse.credential 
+  });
+
+  if (googleError) {
+    setLoading(false);
+    toast.error(googleError?.message || "Google Sync Failed");
+    return;
+  }
 
   
-    if (data?.mfa_required) {
-      setIsMfaStep(true);
-      setLoading(false);
-      toast.info("Step 2 Required", { description: "Identify via Authenticator." });
-      return;
-    }
-
-    if (data?.user) {
-      toast.success("Authentication Successful");
-      navigate("/chat");
-    }
-  };
-
-  const handleMfaVerify = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-
-    const { data, error: mfaError } = await authApi.verifyMfaLogin(form.email, mfaCode);
+  if (data?.mfa_required) {
+    setForm({ ...form, email: data.email }); 
+    setIsMfaStep(true);
     setLoading(false);
+    toast.info("MFA Required", { description: "Verify via Authenticator." });
+    return;
+  }
 
-    if (mfaError) {
-      setError(mfaError.message || "Invalid Authenticator Code.");
-      return;
-    }
-
-    if (data?.user) {
-      setUser(data.user);
-      toast.success("Identity Confirmed");
-      navigate("/chat");
-    }
-  };
-
- const handleGoogleSuccess = async (credentialResponse) => {
-    setLoading(true);
-    const { data, error: googleError } = await authApi.googleLogin(credentialResponse.credential);
-    setLoading(false);
-
+  if (data?.user) {
+    setUser(data.user);
+    toast.success("Google Identity Verified");
     
-    if (data?.mfa_required) {
-        setForm({ ...form, email: data.email }); 
-        setIsMfaStep(true);
-        toast.info("MFA Required", { description: "Verify via Authenticator." });
-        return;
-    }
-
-    if (data?.user) {
-        setUser(data.user);
-        toast.success("Google Identity Verified");
-        navigate("/chat");
-    } else {
-        toast.error(googleError?.message || "Google Sync Failed");
-    }
+    
+    navigate(data.user.is_staff ? "/admin" : "/chat");
+  }
 };
+
 
   return (
     <AuthLayout
@@ -95,7 +113,7 @@ export default function LoginPage() {
     >
       <div className="max-w-md mx-auto w-full">
 
-        {/*  Standard Login Form */}
+        {/* Step 1: Standard Login Form */}
         {!isMfaStep ? (
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
@@ -116,7 +134,15 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="font-mono text-[9px] uppercase tracking-[0.2em] text-slate-400 ml-1">Credentials</label>
+              <div className="flex justify-between items-center px-1">
+                <label className="font-mono text-[9px] uppercase tracking-[0.2em] text-slate-400">Credentials</label>
+                <Link
+                  to="/forgot-password"
+                  className="font-mono text-[9px] uppercase tracking-widest text-indigo-600 hover:text-indigo-400 font-bold transition-colors"
+                >
+                  Forgot?
+                </Link>
+              </div>
               <input
                 type="password"
                 placeholder="Password"
@@ -134,7 +160,7 @@ export default function LoginPage() {
             </button>
           </form>
         ) : (
-          /*  MFA Verification Form */
+          /* Step 2: MFA Verification Form */
           <form onSubmit={handleMfaVerify} className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
             {error && (
               <div className="bg-red-50 border border-red-100 p-3 rounded-xl">
@@ -150,11 +176,9 @@ export default function LoginPage() {
                 maxLength="6"
                 placeholder="000 000"
                 autoFocus
-                
                 name="one-time-code"
                 autocomplete="one-time-code"
                 inputMode="numeric"
-                
                 className="w-full text-center font-mono text-4xl tracking-[0.4em] py-6 bg-slate-50 rounded-2xl border-2 border-slate-100 focus:border-indigo-500 focus:bg-white outline-none transition-all text-slate-950"
                 onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ""))}
               />
@@ -193,7 +217,7 @@ export default function LoginPage() {
                 onSuccess={handleGoogleSuccess}
                 onError={() => toast.error("Google Handshake Failed")}
                 shape="pill"
-                width="100%"
+                width="250"
               />
             </div>
           </>
@@ -204,9 +228,7 @@ export default function LoginPage() {
             New to the ecosystem?
             <Link to="/register" className="ml-2 text-indigo-600 font-black hover:underline underline-offset-4">Join Aion</Link>
           </p>
-          <Link to="/forgot-password" size="sm" className="font-mono mt-5 text-[13px] uppercase tracking-widest text-slate-300 hover:text-slate-500 transition-colors">
-             Forgot Password
-          </Link>
+
         </div>
       </div>
     </AuthLayout>

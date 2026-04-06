@@ -24,3 +24,23 @@ def send_otp_email(user_email, first_name, otp_code):
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[user_email],
     )
+
+def send_password_reset_email(user_email, first_name, reset_link):
+    subject = "AION CORE - Security Protocol: Password Reset"
+    message = (
+        f"Hi {first_name},\n\n"
+        f"A request has been initiated to reset your credentials for AION CORE.\n"
+        f"Please click the secure link below to proceed:\n\n"
+        f"{reset_link}\n\n"
+        f"This link is valid for a limited time.\n"
+        f"If you did not request this, please secure your terminal and ignore this email."
+    )
+    
+    
+    send_mail(
+        subject=subject,
+        message=message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user_email],
+        fail_silently=False,
+    )
