@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { authApi } from "../api/auth";
 import { useAuth } from "../context/AuthContext";
 import AuthLayout from "../components/AuthLayout";
+import { toast } from "sonner";
 
 /**
  * VerifyOTPPage

@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 export default function ChatPage() {
   const { isLoggedIn } = useAuth();
 
-  if (!isLoggedIn) return <Navigate to="/login" />;
+  
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col relative overflow-hidden">

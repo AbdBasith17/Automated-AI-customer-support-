@@ -1,10 +1,11 @@
 import secrets
-from django.core.mail import send_mail
+
 from django.conf import settings
+from django.core.mail import send_mail
 
 
 def generate_otp():
-    # secrets.randbelow for otp 
+    # secrets.randbelow for otp
     return f"{secrets.randbelow(1_000_000):06d}"
 
 
@@ -25,6 +26,7 @@ def send_otp_email(user_email, first_name, otp_code):
         recipient_list=[user_email],
     )
 
+
 def send_password_reset_email(user_email, first_name, reset_link):
     subject = "AION CORE - Security Protocol: Password Reset"
     message = (
@@ -35,8 +37,7 @@ def send_password_reset_email(user_email, first_name, reset_link):
         f"This link is valid for a limited time.\n"
         f"If you did not request this, please secure your terminal and ignore this email."
     )
-    
-    
+
     send_mail(
         subject=subject,
         message=message,

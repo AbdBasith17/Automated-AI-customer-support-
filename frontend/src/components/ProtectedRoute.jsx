@@ -51,7 +51,7 @@ export const VerifiedGuard = ({ children }) => {
 export const AdminGuard = ({ children }) => {
   const { user, isLoggedIn, loading } = useAuth();
 
-  // 1. Critical: Wait for AuthProvider to finish its session restoration
+ 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950">
@@ -60,21 +60,42 @@ export const AdminGuard = ({ children }) => {
     );
   }
 
-  // 2. If not logged in at all, go to login
+
   if (!isLoggedIn || !user) {
     return <Navigate to="/login" replace />;
   }
 
-  // 3. Role Check: Use a console log here to see exactly what the Guard sees
-  // console.log("AdminGuard Check:", { role: user.role, is_staff: user.is_staff });
 
-  // IMPORTANT: Ensure this matches the property name your backend sends!
-  // If your console showed 'admin', you might need: user.role === 'admin'
-  const hasAccess = user.is_staff || user.role === 'admin';
+  const hasAccess =  user.role === 'admin';
 
   if (!hasAccess) {
     return <Navigate to="/chat" replace />;
   }
 
+  return children;
+};
+
+
+export const GuestGuard = ({ children }) => {
+  const { isLoggedIn, user, loading } = useAuth();
+
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
+      </div>
+    );
+  }
+
+  
+  if (isLoggedIn && user) {
+    
+    const isAdmin = user.role === 'admin';
+    
+    return <Navigate to={isAdmin ? "/admin" : "/chat"} replace />;
+  }
+
+  
   return children;
 };

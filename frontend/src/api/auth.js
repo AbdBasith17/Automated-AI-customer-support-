@@ -78,12 +78,12 @@ export const authApi = {
       data: { code },
     }),
 
-  verifyMfaLogin: (email, code) =>
-    request({
-      method: "POST",
-      url: "/mfa/verify-login/",
-      data: { email, code },
-    }),
+ verifyMfaLogin: (mfaToken, code) =>
+  request({
+    method: "POST",
+    url: "/mfa/verify-login/",
+    data: { mfa_token: mfaToken, code },
+  }),
 
   // --- PASSWORD RECOVERY ---
   forgotPassword: (email) =>

@@ -1,10 +1,10 @@
-import uuid
 import secrets
+import uuid
 from datetime import timedelta
 
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 from django.utils import timezone
-from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 
 from .managers import UserManager
 
@@ -12,28 +12,28 @@ from .managers import UserManager
 class User(AbstractBaseUser, PermissionsMixin):
 
     ROLE_ADMIN = "admin"
-    ROLE_USER  = "user"
+    ROLE_USER = "user"
 
     ROLE_CHOICES = [
         (ROLE_ADMIN, "Admin"),
-        (ROLE_USER,  "User"),
+        (ROLE_USER, "User"),
     ]
 
-    id          = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    email       = models.EmailField(unique=True)
-    first_name  = models.CharField(max_length=150)
-    last_name   = models.CharField(max_length=150)
-    role        = models.CharField(max_length=10, choices=ROLE_CHOICES, default=ROLE_USER)
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    email = models.EmailField(unique=True)
+    first_name = models.CharField(max_length=150)
+    last_name = models.CharField(max_length=150)
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default=ROLE_USER)
     is_verified = models.BooleanField(default=False)
-    is_active   = models.BooleanField(default=True)
-    is_staff    = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
-    mfa_secret =  models.CharField(max_length=32, blank=True, null=True)
+    mfa_secret = models.CharField(max_length=32, blank=True, null=True)
     is_mfa_enabled = models.BooleanField(default=False)
 
     objects = UserManager()
 
-    USERNAME_FIELD  = "email"
+    USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["first_name", "last_name"]
 
     def __str__(self):
@@ -45,9 +45,9 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 class OTPVerification(models.Model):
 
-    user       = models.ForeignKey(User, on_delete=models.CASCADE)
-    code       = models.CharField(max_length=6)
-    is_used    = models.BooleanField(default=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    code = models.CharField(max_length=6)
+    is_used = models.BooleanField(default=False)
     expires_at = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
 

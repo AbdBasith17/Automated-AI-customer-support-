@@ -11,11 +11,12 @@ export default function LoginPage() {
   const navigate = useNavigate();
 
   // State Management
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [form, setForm] = useState({ email: "", password: "" , mfaToken: ""});
   const [mfaCode, setMfaCode] = useState("");
   const [isMfaStep, setIsMfaStep] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
 
 
 
@@ -33,6 +34,8 @@ const handleSubmit = async (e) => {
   }
 
   if (data?.mfa_required) {
+   
+    setForm(prev => ({ ...prev, mfaToken: data.mfa_token })); 
     setIsMfaStep(true);
     setLoading(false);
     return;
@@ -42,10 +45,11 @@ const handleSubmit = async (e) => {
     toast.success("Authentication Successful");
     
     
-    console.log("Is Staff:", data.user.is_staff);
+    // console.log("Is Staff:", data.user.is_staff);
 
+    const isAdmin =  data.user.role === 'admin';
    
-    if (data.user.is_staff) {
+    if (isAdmin ) {
       navigate("/admin", { replace: true });
     } else {
       navigate("/chat", { replace: true });
@@ -57,19 +61,24 @@ const handleMfaVerify = async (e) => {
   setLoading(true);
   setError("");
 
-  const { data, error: mfaError } = await authApi.verifyMfaLogin(form.email, mfaCode);
-  setLoading(false);
+  // USE THE TOKEN HERE:
+  const { data, error: mfaError } = await authApi.verifyMfaLogin(form.mfaToken, mfaCode);
 
   if (mfaError) {
+    setLoading(false);
     setError(mfaError.message || "Invalid Authenticator Code.");
     return;
   }
 
   if (data?.user) {
-    setUser(data.user);
+    setUser(data.user); 
     toast.success("Identity Confirmed");
-    
-    navigate(data.user.is_staff ? "/admin" : "/chat");
+
+    const isAdmin = data.user.role === 'admin';
+    setTimeout(() => {
+      navigate(isAdmin ? "/admin" : "/chat", { replace: true });
+      setLoading(false);
+    }, 50); 
   }
 };
 
@@ -79,6 +88,7 @@ const handleGoogleSuccess = async (credentialResponse) => {
   const { data, error: googleError } = await authApi.googleLogin({ 
     token: credentialResponse.credential 
   });
+  // console.log(credentialResponse)
 
   if (googleError) {
     setLoading(false);
@@ -88,19 +98,23 @@ const handleGoogleSuccess = async (credentialResponse) => {
 
   
   if (data?.mfa_required) {
-    setForm({ ...form, email: data.email }); 
-    setIsMfaStep(true);
-    setLoading(false);
-    toast.info("MFA Required", { description: "Verify via Authenticator." });
-    return;
-  }
+  setForm(prev => ({ ...prev, mfaToken: data.mfa_token })); 
+  setIsMfaStep(true);
+  setLoading(false);
+  toast.info("MFA Required", { description: "Verify via Authenticator." });
+  return;
+}
 
   if (data?.user) {
     setUser(data.user);
     toast.success("Google Identity Verified");
     
+    const isAdmin =  data.user.role === 'admin';
     
-    navigate(data.user.is_staff ? "/admin" : "/chat");
+    setTimeout(() => {
+      navigate(isAdmin ? "/admin" : "/chat", { replace: true });
+      setLoading(false);
+    }, 50);
   }
 };
 

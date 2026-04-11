@@ -8,15 +8,17 @@ from .models import OTPVerification, User
 class RegisterSerializer(serializers.Serializer):
 
     first_name = serializers.CharField(max_length=150)
-    last_name  = serializers.CharField(max_length=150)
-    email      = serializers.EmailField()
-    password   = serializers.CharField(write_only=True)
-    password2  = serializers.CharField(write_only=True)
+    last_name = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+    password2 = serializers.CharField(write_only=True)
 
     def validate_email(self, value):
         email = value.lower()
         if User.objects.filter(email=email).exists():
-            raise serializers.ValidationError("An account with this email already exists.")
+            raise serializers.ValidationError(
+                "An account with this email already exists."
+            )
         return email
 
     def validate_password(self, value):
@@ -31,11 +33,11 @@ class RegisterSerializer(serializers.Serializer):
 
 class VerifyOTPSerializer(serializers.Serializer):
 
-    email    = serializers.EmailField()
+    email = serializers.EmailField()
     otp_code = serializers.CharField(min_length=6, max_length=6)
 
     def validate(self, data):
-        email    = data["email"].lower()
+        email = data["email"].lower()
         otp_code = data["otp_code"]
 
         try:
@@ -49,16 +51,20 @@ class VerifyOTPSerializer(serializers.Serializer):
         otp = OTPVerification.objects.filter(user=user, is_used=False).last()
 
         if otp is None:
-            raise serializers.ValidationError("No active OTP found. Please request a new one.")
+            raise serializers.ValidationError(
+                "No active OTP found. Please request a new one."
+            )
 
         if otp.is_expired():
-            raise serializers.ValidationError("This OTP has expired. Please request a new one.")
+            raise serializers.ValidationError(
+                "This OTP has expired. Please request a new one."
+            )
 
         if otp.code != otp_code:
             raise serializers.ValidationError("Incorrect OTP code.")
 
         data["user"] = user
-        data["otp"]  = otp
+        data["otp"] = otp
         return data
 
 
@@ -83,11 +89,11 @@ class ResendOTPSerializer(serializers.Serializer):
 
 class LoginSerializer(serializers.Serializer):
 
-    email    = serializers.EmailField()
+    email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
 
     def validate(self, data):
-        email    = data["email"].lower()
+        email = data["email"].lower()
         password = data["password"]
 
         user = authenticate(
@@ -107,7 +113,6 @@ class LoginSerializer(serializers.Serializer):
         data["user"] = user
         return data
 
-from rest_framework import serializers
 
 class ResetPasswordConfirmSerializer(serializers.Serializer):
     uid = serializers.CharField()
@@ -116,6 +121,6 @@ class ResetPasswordConfirmSerializer(serializers.Serializer):
     confirm_password = serializers.CharField(write_only=True)
 
     def validate(self, data):
-        if data['new_password'] != data['confirm_password']:
+        if data["new_password"] != data["confirm_password"]:
             raise serializers.ValidationError({"password": "Passwords do not match."})
         return data

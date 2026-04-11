@@ -12,3 +12,7 @@ google-auth-oauthlib
 pyotp==2.9.0
 qrcode==7.4.2
 pillow==10.2.0  
+
+black
+isort
+flake8

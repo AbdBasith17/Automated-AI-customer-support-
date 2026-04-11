@@ -1,115 +1,110 @@
-import { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
-import { authApi } from "../api/auth";
+
+import { createContext, useContext, useEffect, useCallback, useMemo } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  selectUser,
+  selectAuthLoading,
+  selectIsLoggedIn,
+  selectIsVerified,
+  setUser,
+  checkSession,
+  loginUser,
+  logoutUser,
+  loginWithGoogleThunk,
+} from "../store/slices/authslice";
 
 const AuthContext = createContext(null);
 
-/**
- * AuthProvider: Manages global authentication state.
- * Handles session restoration on mount and provides login/logout methods.
- */
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useDispatch();
+  const user = useSelector(selectUser);
+  const loading = useSelector(selectAuthLoading);
+  const isLoggedIn = useSelector(selectIsLoggedIn);
+  const isVerified = useSelector(selectIsVerified);
 
-  /**
-   * Restores session by calling the /me/ endpoint.
-   * Wrapped in try/catch to handle 401 (Unauthorized) or CORS errors
-   */
-  const checkSession = useCallback(async () => {
-  let isMounted = true; 
-  
-  try {
-    const { data } = await authApi.getMe();
-    
-    if (isMounted) {
-      if (data && (data.user || data.email)) {
-        setUser(data.user || data);
-      } else {
-        setUser(null);
-      }
-    }
-  } catch (err) {
-    if (isMounted) setUser(null);
-  } finally {
-    if (isMounted) setLoading(false);
-  }
-
-  return () => { isMounted = false; };
-}, []);
-
-  // Run session check on initial mount
+  // Restore session on mount
   useEffect(() => {
-    checkSession();
-  }, [checkSession]);
+    dispatch(checkSession());
+  }, [dispatch]);
 
   /**
-   * Standard Email/Password Login
+   * login — returns { data, error } like the old AuthContext so pages don't change.
+   * The Redux thunk still fires so the store stays in sync.
    */
-  const login = async (email, password) => {
-  const { data, error } = await authApi.login(email, password);
-  if (data?.user) {
-    // Force the state update
-    setUser(data.user);
-  }
-  // Return the full data so the component knows the role IMMEDIATELY
-  return { data, error };
-};
+  const login = useCallback(
+    async (email, password) => {
+      try {
+        const data = await dispatch(loginUser({ email, password })).unwrap();
+        return { data, error: null };
+      } catch (error) {
+        return { data: null, error };
+      }
+    },
+    [dispatch]
+  );
 
-const loginWithGoogle = async (googleToken) => {
-  const { data, error } = await authApi.googleLogin(googleToken);
-  if (data?.user) {
-    setUser(data.user);
-  }
-  return { data, error };
-};
+  const loginWithGoogle = useCallback(
+    async (token) => {
+      try {
+        const data = await dispatch(loginWithGoogleThunk(token)).unwrap();
+        return { data, error: null };
+      } catch (error) {
+        return { data: null, error };
+      }
+    },
+    [dispatch]
+  );
 
-  /**
-   * Logout: Clears state
-   */
-  const logout = async () => {
-    try {
-      await authApi.logout();
-    } finally {
-      setUser(null);
-      
-    }
-  };
+  const logout = useCallback(async () => {
+    await dispatch(logoutUser());
+  }, [dispatch]);
 
-  
-  const contextValue = useMemo(() => ({
-    user,
-    loading,
-    setUser,
-    login,
-    logout,
-    loginWithGoogle,
-    checkSession,
-    isLoggedIn: !!user,
-    isVerified: !!user?.is_verified,
-  }), [user, loading, checkSession]);
+  const handleSetUser = useCallback(
+    (userData) => dispatch(setUser(userData)),
+    [dispatch]
+  );
+
+  const handleCheckSession = useCallback(
+    () => dispatch(checkSession()),
+    [dispatch]
+  );
+
+  const value = useMemo(
+    () => ({
+      user,
+      loading,
+      isLoggedIn,
+      isVerified,
+      setUser: handleSetUser,
+      login,
+      logout,
+      loginWithGoogle,
+      checkSession: handleCheckSession,
+    }),
+    [user, loading, isLoggedIn, isVerified, handleSetUser, login, logout, loginWithGoogle, handleCheckSession]
+  );
 
   return (
-    <AuthContext.Provider value={contextValue}>
-      {!loading ? (
-        children
-      ) : (
-        
-        <div className="flex h-screen w-full flex-col items-center justify-center bg-gray-50">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
-          <p className="mt-4 text-sm font-medium text-gray-500">Restoring session...</p>
+    <AuthContext.Provider value={value}>
+      {loading ? (
+        <div className="flex h-screen w-full flex-col items-center justify-center bg-slate-950">
+          <div className="relative">
+            <div className="h-12 w-12 rounded-full border-4 border-slate-800 border-t-indigo-500 animate-spin" />
+            <div className="h-12 w-12 rounded-full border-4 border-slate-800 border-t-indigo-300 animate-spin absolute inset-0 [animation-duration:1.4s]" />
+          </div>
+          <p className="mt-5 font-mono text-[10px] text-slate-500 uppercase tracking-[0.3em]">
+            Restoring session...
+          </p>
         </div>
+      ) : (
+        children
       )}
     </AuthContext.Provider>
   );
 }
 
-/**
- * Hook to access AuthContext
- */
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used inside an <AuthProvider>");
-  }
+  if (!context) throw new Error("useAuth must be used inside <AuthProvider>");
   return context;
 }

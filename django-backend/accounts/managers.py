@@ -13,10 +13,7 @@ class UserManager(BaseUserManager):
         email = self.normalize_email(email)
 
         user = self.model(
-            email=email,
-            first_name=first_name,
-            last_name=last_name,
-            **extra_fields
+            email=email, first_name=first_name, last_name=last_name, **extra_fields
         )
 
         user.set_password(password)
@@ -26,9 +23,9 @@ class UserManager(BaseUserManager):
 
     def create_superuser(self, email, password, first_name, last_name, **extra_fields):
 
-        extra_fields["is_staff"]     = True
+        extra_fields["is_staff"] = True
         extra_fields["is_superuser"] = True
-        extra_fields["is_verified"]  = True
-        extra_fields["role"]         = "admin"
+        extra_fields["is_verified"] = True
+        extra_fields["role"] = "admin"
 
         return self.create_user(email, password, first_name, last_name, **extra_fields)
