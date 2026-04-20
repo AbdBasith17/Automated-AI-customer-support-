@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:15-alpine
+    container_name: aion-db
     volumes:
       - postgres_data:/var/lib/postgresql/data/
     environment:
@@ -8,19 +9,55 @@ services:
       - POSTGRES_USER=user
       - POSTGRES_PASSWORD=password
 
+  redis:
+    image: redis:7-alpine
+    container_name: aion-redis
+    ports:
+      - "6379:6379"
+
   backend:
     build: ./django-backend
+    container_name: aion-backend
     volumes:
       - ./django-backend:/app
-    env_file:
-      - ./django-backend/.env
+    env_file: ./django-backend/.env
     ports:
       - "9001:8000"
-    environment:
-      - DATABASE_URL=postgres://user:password@db:5432/enterprise_db
     depends_on:
       - db
+      - redis
     command: python manage.py runserver 0.0.0.0:8000
+
+  celery-worker:
+    build: ./django-backend
+    container_name: aion-celery-worker
+    command: celery -A workers.celery_app worker -Q embedding,beat_tasks --loglevel=info -P solo
+    volumes:
+      - ./django-backend:/app
+    env_file: ./django-backend/.env
+    depends_on:
+      - db
+      - redis
+
+  celery-beat:
+    build: ./django-backend
+    container_name: aion-celery-beat
+    command: celery -A workers.celery_app beat --loglevel=info
+    volumes:
+      - ./django-backend:/app
+    env_file: ./django-backend/.env
+    depends_on:
+      - redis
+
+  flower:
+    image: mher/flower
+    container_name: aion-flower
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    depends_on:
+      - redis
 
 volumes:
   postgres_data:

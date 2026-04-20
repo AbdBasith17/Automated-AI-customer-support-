@@ -16,3 +16,16 @@ pillow==10.2.0
 black
 isort
 flake8
+
+django-storages
+boto3
+pypdf
+python-docx
+
+
+celery==5.3.6
+redis==5.0.1
+langchain-google-genai
+langchain-text-splitters
+pinecone-client
+flower
