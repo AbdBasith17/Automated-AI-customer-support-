@@ -378,7 +378,7 @@ class RequestPasswordResetView(APIView):
             return Response(
                 {"message": "Recovery link dispatched."}, status=status.HTTP_200_OK
             )
-        except Exception as e:
+        except Exception:
             return Response(
                 {"error": "Mail server handshake failed."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

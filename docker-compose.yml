@@ -1,4 +1,76 @@
+version: '3.8'
+
 services:
+  
+  nginx:
+    image: nginx:alpine
+    container_name: aion-gateway
+    restart: always
+    ports:
+      - "8080:80"  
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - backend
+      - ai-service
+    networks:
+      - aion-network
+
+  backend:
+    build: ./django-backend
+    container_name: aion-backend
+    restart: always
+    volumes:
+      - ./django-backend:/app
+    env_file: ./django-backend/.env
+    
+    expose:
+      - "8000"
+    depends_on:
+      - db
+      - redis
+    command: daphne -b 0.0.0.0 -p 8000 core.asgi:application
+    networks:
+      - aion-network
+
+  ai-service:
+    build: ./ai-service-fastapi
+    ports:
+    - "8001:8001"
+    container_name: aion-ai-service
+    restart: always
+    volumes:
+      - ./ai-service-fastapi:/app
+    env_file: ./ai-service-fastapi/.env
+    environment:
+      - CHROMA_HOST=chroma-db
+      - CHROMA_PORT=8000
+    depends_on:
+      - redis
+      - chroma-db
+    networks:
+      - aion-network
+
+  chroma-db:
+    image: chromadb/chroma:latest
+    container_name: aion-vector-db
+    restart: always
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    
+    expose:
+      - "8000"
+    
+    ports:
+      - "8000:8000"
+    networks:
+      - aion-network
+
   db:
     image: postgres:15-alpine
     container_name: aion-db
@@ -8,25 +80,16 @@ services:
       - POSTGRES_DB=enterprise_db
       - POSTGRES_USER=user
       - POSTGRES_PASSWORD=password
+    networks:
+      - aion-network
 
   redis:
     image: redis:7-alpine
     container_name: aion-redis
     ports:
       - "6379:6379"
-
-  backend:
-    build: ./django-backend
-    container_name: aion-backend
-    volumes:
-      - ./django-backend:/app
-    env_file: ./django-backend/.env
-    ports:
-      - "9001:8000"
-    depends_on:
-      - db
-      - redis
-    command: python manage.py runserver 0.0.0.0:8000
+    networks:
+      - aion-network
 
   celery-worker:
     build: ./django-backend
@@ -38,6 +101,8 @@ services:
     depends_on:
       - db
       - redis
+    networks:
+      - aion-network
 
   celery-beat:
     build: ./django-backend
@@ -48,6 +113,8 @@ services:
     env_file: ./django-backend/.env
     depends_on:
       - redis
+    networks:
+      - aion-network
 
   flower:
     image: mher/flower
@@ -58,6 +125,13 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
     depends_on:
       - redis
+    networks:
+      - aion-network
+
+networks:
+  aion-network:
+    driver: bridge
 
 volumes:
   postgres_data:
+  chroma_data:

@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+langchain
+langchain-google-genai>=2.0.0        
+langchain-chroma
+langchain-experimental
+boto3
+PyMuPDF
+
+google-generativeai>=0.8.0           
+
+pydantic-settings
+httpx
+python-multipart
+
+chromadb

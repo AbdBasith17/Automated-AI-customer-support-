@@ -29,3 +29,8 @@ langchain-google-genai
 langchain-text-splitters
 pinecone-client
 flower
+
+
+daphne
+channels
+channels-redis

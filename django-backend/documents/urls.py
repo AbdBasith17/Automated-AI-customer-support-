@@ -1,7 +1,10 @@
 from django.urls import path
-from .views import DocumentUploadView , AdminDocumentListView
+
+from .views import AdminDocumentListView, DocumentUploadView
 
 urlpatterns = [
-    path('upload/', DocumentUploadView.as_view(), name='document-upload'),
-    path('admin/all-docs/', AdminDocumentListView.as_view(), name='admin-document-list'),
+    path("upload/", DocumentUploadView.as_view(), name="document-upload"),
+    path(
+        "admin/all-docs/", AdminDocumentListView.as_view(), name="admin-document-list"
+    ),
 ]
