@@ -1,16 +1,24 @@
+# Server & API
 fastapi
 uvicorn
-langchain
-langchain-google-genai>=2.0.0        
-langchain-chroma
-langchain-experimental
-boto3
-PyMuPDF
-
-google-generativeai>=0.8.0           
-
 pydantic-settings
 httpx
-python-multipart
 
+# AWS & Database
+boto3
 chromadb
+
+# AI & RAG Core
+langchain>=0.3.0
+langchain-community
+langchain-google-genai
+langchain-chroma
+langchain-groq
+langchain-text-splitters
+
+# Targeted Document Processing (Fixed Versions)
+pymupdf>=1.24.10         
+pymupdf4llm==0.0.17      
+python-docx==1.1.2       
+markdown==3.6            
+pillow==10.3.0

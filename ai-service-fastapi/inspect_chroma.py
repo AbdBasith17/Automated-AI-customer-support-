@@ -1,37 +1,37 @@
 import chromadb
+import os
+from dotenv import load_dotenv
 
-# Since you exposed port 8000:8000 in docker-compose, 
-# your host machine sees it at localhost:8000
-client = chromadb.HttpClient(host='chroma-db', port=8000)
-def verify_storage():
-    try:
-        # 1. Check Heartbeat (is the server alive?)
-        print(f"Connection Heartbeat: {client.heartbeat()}")
+load_dotenv()
 
-        # 2. List all collections
-        collections = client.list_collections()
-        print(f"Found {len(collections)} collections.")
+def inspect_db():
+    # Connect to the Chroma server running in Docker
+    # We use 'chroma-db' because that is the service name in your docker-compose
+    client = chromadb.HttpClient(
+        host=os.getenv("CHROMA_HOST", "chroma-db"), 
+        port=int(os.getenv("CHROMA_PORT", 8000))
+    )
 
-        for col_name in collections:
-            # Note: list_collections returns a list of collection objects or names 
-            # depending on version; we'll handle both.
-            name = col_name.name if hasattr(col_name, 'name') else col_name
-            print(f"\n--- Checking Collection: {name} ---")
-            
-            collection = client.get_collection(name=name)
-            count = collection.count()
-            print(f"Total Chunks: {count}")
+    print("--- ChromaDB Inspection ---")
+    
+    # 1. List all collections
+    collections = client.list_collections()
+    print(f"Total Collections found: {len(collections)}")
 
-            if count > 0:
-                # Peek at the actual data
-                results = collection.peek(limit=3)
-                print("Last 3 IDs added:", results['ids'])
-                print("Metadata Sample:", results['metadatas'][0] if results['metadatas'] else "No metadata")
-            else:
-                print("Result: Collection exists but is empty.")
+    for coll in collections:
+        print(f"\nCollection Name: {coll.name}")
+        
+        # 2. Get count of documents in this collection
+        count = coll.count()
+        print(f" - Document Count: {count}")
 
-    except Exception as e:
-        print(f"Verification failed: {e}")
+        if count > 0:
+            # 3. Peek at the first document to verify structure
+            sample = coll.peek(1)
+            print(f" - Sample Metadata: {sample['metadatas'][0]}")
+            print(f" - Sample Content (first 100 chars): {sample['documents'][0][:100]}...")
+        else:
+            print(" - [!] This collection is empty.")
 
 if __name__ == "__main__":
-    verify_storage()
+    inspect_db()
