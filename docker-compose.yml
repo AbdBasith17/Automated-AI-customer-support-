@@ -45,6 +45,7 @@ services:
       - ./ai-service-fastapi:/app
     env_file: ./ai-service-fastapi/.env
     environment:
+      - REDIS_URL=redis://redis:6379/0  # <--- ADD THIS LINE HERE
       - CHROMA_HOST=chroma-db
       - CHROMA_PORT=8000
     depends_on:
@@ -127,6 +128,23 @@ services:
       - redis
     networks:
       - aion-network
+
+  ai-worker:
+    build: ./ai-service-fastapi
+    container_name: aion-ai-worker
+    command: celery -A celery_app worker --loglevel=info -P solo -Q rag  
+    volumes:
+      - ./ai-service-fastapi:/app
+    env_file: ./ai-service-fastapi/.env
+    environment:
+      - REDIS_URL=redis://redis:6379/0   
+      - CHROMA_HOST=chroma-db
+      - CHROMA_PORT=8000
+    depends_on:
+      - redis
+      - chroma-db
+    networks:
+      - aion-network   
 
 networks:
   aion-network:
