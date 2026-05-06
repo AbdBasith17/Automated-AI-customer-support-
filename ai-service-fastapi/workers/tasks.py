@@ -18,7 +18,7 @@ def fetch_history_from_dynamo(session_id: str, limit: int = 20) -> str:
     try:
         dynamodb = boto3.resource(
             'dynamodb',
-            region_name=os.getenv("AWS_REGION", "us-east-1"),
+            region_name=os.getenv("AWS_REGION", "ap-south-1"),
             endpoint_url=os.getenv("DYNAMODB_URL")
         )
         table = dynamodb.Table(os.getenv("DYNAMODB_MESSAGES_TABLE", "AionChatMessages"))
@@ -33,6 +33,8 @@ def fetch_history_from_dynamo(session_id: str, limit: int = 20) -> str:
             f"{m['role'].capitalize()}: {m['content']}"
             for m in messages
         ])
+    
+        return messages
     except Exception as e:
         print(f"DynamoDB Fetch Error: {e}")
         return ""

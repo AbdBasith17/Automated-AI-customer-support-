@@ -10,7 +10,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.tools import tool
 from services.cache_service import CacheService
 
-# --- STEP 1: Define the Ticket Tool ---
+
 @tool
 def create_support_ticket(summary: str, description: str):
     """
@@ -59,18 +59,28 @@ class QueryService:
 
     def get_response(self, query: str, session_id: str, user_metadata: dict = None, collection_name: str = "enterprise_docs", chat_history: str = ""):
         try:
-            # --- 1. DUPLICATE TICKET CHECK ---
-            # We look for a ticket reference in the chat history to prevent duplicates
+            # --- Build user-scoped cache key FIRST so both GET and SET use it ---
+            user_email = user_metadata.get("email", "anonymous") if user_metadata else "anonymous"
+            user_scoped_query = f"{user_email}:{query}"
+
+            # Cache lookup (scoped — fixes the data-leak bug)
+            cached_response = self.cache.get_cached_response(user_scoped_query)
+            if cached_response:
+                print(f"DEBUG: [Cache Hit] Returning scoped response for {user_email}")
+                return cached_response
+
             has_existing_ticket = "Reference: KAN-" in chat_history or "ticket_created" in chat_history
 
-            optimized_query = self._rewrite_query(query, chat_history)
-            
-            # Context search
+            # Only rewrite if there's actual history to disambiguate
+            if chat_history and chat_history not in ("", "No history."):
+                optimized_query = self._rewrite_query(query, chat_history)
+            else:
+                optimized_query = query
+
             vector_db = Chroma(collection_name=collection_name, embedding_function=self.embeddings, client=self.chroma_client)
             docs = vector_db.similarity_search(optimized_query, k=5)
             context_text = "\n\n".join([d.page_content for d in docs]) if docs else ""
 
-            # --- 2. UPDATED PROMPT ---
             template = """You are a senior support engineer for Aion Mobility.
             
             CUSTOMER: {full_name} ({email})
@@ -89,60 +99,68 @@ class QueryService:
             Answer:"""
 
             ticket_status = "Already Created" if has_existing_ticket else "None"
-            email = user_metadata.get("email", "your email") if user_metadata else "your email"
             full_name = user_metadata.get("full_name", "Customer") if user_metadata else "Customer"
 
             gen_prompt = ChatPromptTemplate.from_template(template)
             chain = gen_prompt | self.generator_with_tools
-            
+
             ai_msg = chain.invoke({
                 "history": chat_history or "No history.",
                 "context": context_text,
                 "question": query,
                 "full_name": full_name,
-                "email": email,
+                "email": user_email,
                 "ticket_status": ticket_status
             })
 
-            # --- 3. HANDLE TOOL CALL (With Duplicate Guard) ---
             if ai_msg.tool_calls and not has_existing_ticket:
                 tool_args = ai_msg.tool_calls[0]['args']
-                
-                # Combine User details for Jira
-                jira_desc = f"CUSTOMER: {full_name} ({email})\n\nISSUE:\n{tool_args.get('description')}"
-                
+                jira_desc = f"CUSTOMER: {full_name} ({user_email})\n\nISSUE:\n{tool_args.get('description')}"
                 jira_data = self._trigger_n8n_jira(tool_args.get('summary'), jira_desc, session_id)
-                
-                # CUSTOM SUCCESS MESSAGE
+
                 return {
-                    "answer": f"I've opened a support ticket for you. Reference: {jira_data.get('key')}. Our team will review this and contact you shortly through your registered email ({email}).",
+                    "answer": f"I've opened a support ticket for you. Reference: {jira_data.get('key')}. Our team will review this and contact you shortly through your registered email ({user_email}).",
                     "status": "ticket_created",
                     "ticket_key": jira_data.get("key")
                 }
-            
-            # Default response (Troubleshooting or Status Update)
-            return {
-                "answer": ai_msg.content,
-                "status": "success"
-            }
+
+            # Guard against empty content when model fires a tool but ticket already exists
+            answer = ai_msg.content or "Our team is already working on your issue. Updates will be sent to your email."
+
+            final_response = {"answer": answer, "status": "success"}
+
+            # Cache only non-ticket, successful responses (scoped to user)
+            if not ai_msg.tool_calls:
+                self.cache.set_cached_response(user_scoped_query, final_response)
+                print(f"DEBUG: [Cache Set] Stored personalized response for {user_email}")
+
+            return final_response
 
         except Exception as e:
             print(f"QueryService Error: {e}")
             raise e
         
-    def _trigger_n8n_jira(self, summary: str, session_id: str):
+    def _trigger_n8n_jira(self, summary: str, description: str, session_id: str):
         webhook_url = os.getenv("N8N_WEBHOOK_URL")
-        payload = {"query": summary, "session_id": session_id}
+    
+        
+        payload = {
+            "summary": summary, 
+            "description": description, 
+            "session_id": session_id
+        }
+    
         try:
             response = requests.post(webhook_url, json=payload, timeout=15)
         
-            # DEBUG: Print the status and body to your console to see the error
             print(f"n8n Status: {response.status_code}")
-            print(f"n8n Response Body: {response.text}")
-
+        
             if response.status_code == 200:
                 data = response.json()
-                return data if isinstance(data, dict) else data[0]
+                # Handle if n8n returns a list
+                if isinstance(data, list) and len(data) > 0:
+                    data = data[0]
+                return data if isinstance(data, dict) else {"key": "Check-Jira"}
             
             return {"key": f"Error-{response.status_code}"}
         

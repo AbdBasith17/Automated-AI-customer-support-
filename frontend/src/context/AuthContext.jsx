@@ -13,6 +13,8 @@ import {
   loginWithGoogleThunk,
 } from "../store/slices/authslice";
 
+import { usePushNotifications } from "../hooks/usePushNotifications";
+
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -22,6 +24,8 @@ export function AuthProvider({ children }) {
   const isLoggedIn = useSelector(selectIsLoggedIn);
   const isVerified = useSelector(selectIsVerified);
 
+
+  usePushNotifications(user);
   // Restore session on mount
   useEffect(() => {
     dispatch(checkSession());

@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:9001/api/auth";
+const BASE_URL = import.meta.env.VITE_API_URL ;
 
 
 const api = axios.create({
@@ -30,58 +30,58 @@ export const authApi = {
   register: (firstName, lastName, email, password, password2) =>
     request({
       method: "POST",
-      url: "/register/",
+      url: "/auth/register/",
       data: { first_name: firstName, last_name: lastName, email, password, password2 },
     }),
 
   verifyOtp: (email, otpCode) =>
     request({
       method: "POST",
-      url: "/verify-otp/",
+      url: "/auth/verify-otp/",
       data: { email, otp_code: otpCode },
     }),
 
   resendOtp: (email) =>
     request({
       method: "POST",
-      url: "/resend-otp/",
+      url: "/auth/resend-otp/",
       data: { email },
     }),
 
   login: (email, password) =>
     request({
       method: "POST",
-      url: "/login/",
+      url: "/auth/login/",
       data: { email, password },
     }),
 
   googleLogin: (payload) => 
   request({
     method: "POST",
-    url: "/google/",
+    url: "/auth/google/",
     data: payload, 
   }),
 
-  logout: () => request({ method: "POST", url: "/logout/" }),
+  logout: () => request({ method: "POST", url: "/auth/logout/" }),
 
-  getMe: () => request({ method: "GET", url: "/me/" }),
+  getMe: () => request({ method: "GET", url: "/auth/me/" }),
 
-  refreshToken: () => request({ method: "POST", url: "/token/refresh/" }),
+  refreshToken: () => request({ method: "POST", url: "/auth/token/refresh/" }),
 
   // --- MFA ---
-  setupMfa: () => request({ method: "GET", url: "/mfa/setup/" }),
+  setupMfa: () => request({ method: "GET", url: "/auth/mfa/setup/" }),
 
   activateMfa: (code) =>
     request({
       method: "POST",
-      url: "/mfa/activate/",
+      url: "/auth/mfa/activate/",
       data: { code },
     }),
 
  verifyMfaLogin: (mfaToken, code) =>
   request({
     method: "POST",
-    url: "/mfa/verify-login/",
+    url: "/auth/mfa/verify-login/",
     data: { mfa_token: mfaToken, code },
   }),
 
@@ -89,14 +89,21 @@ export const authApi = {
   forgotPassword: (email) =>
     request({
       method: "POST",
-      url: "/password-reset/",
+      url: "/auth/password-reset/",
       data: { email },
     }),
 
   resetPasswordConfirm: (uid, token, new_password, confirm_password) =>
     request({
       method: "POST",
-      url: "/password-reset-confirm/",
+      url: "/auth/password-reset-confirm/",
       data: { uid, token, new_password, confirm_password },
+    }),
+
+    registerFcmToken: (sessionId, fcmToken) =>
+    request({
+      method: "POST",
+      url: "/ai/register-token", 
+      data: { session_id: sessionId, fcm_token: fcmToken },
     }),
 };

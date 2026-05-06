@@ -2,7 +2,7 @@ import boto3
 import os
 import time
 from botocore.exceptions import ClientError
-from boto3.dynamodb.conditions import Key  # Needed for querying
+from boto3.dynamodb.conditions import Key  
 
 class DynamoMessageService:
     def __init__(self):
@@ -20,7 +20,7 @@ class DynamoMessageService:
             self.table.put_item(
                 Item={
                     'session_id': str(session_id),
-                    'timestamp': str(time.time_ns()), # High precision for sorting
+                    'timestamp': str(time.time_ns()), 
                     'role': role,
                     'content': content,
                     'sources': sources or []
@@ -29,13 +29,13 @@ class DynamoMessageService:
         except ClientError as e:
             print(f"DynamoDB Save Error: {e.response['Error']['Message']}")
 
-    def get_session_history(self, session_id: str) -> list:
+    def get_messages(self, session_id: str) -> list:
         """Fetches all messages for a session, ordered by timestamp."""
         try:
             response = self.table.query(
                 KeyConditionExpression=Key('session_id').eq(str(session_id))
             )
-            # DynamoDB automatically returns items sorted by the sort key (timestamp)
+            #
             return response.get('Items', [])
         except ClientError as e:
             print(f"DynamoDB Query Error: {e.response['Error']['Message']}")

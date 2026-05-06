@@ -8,8 +8,7 @@ logger = logging.getLogger(__name__)
 
 class CacheService:
     def __init__(self):
-        # Strip any existing db number from the URL before appending /1
-        # Prevents redis://redis:6379/0/1 if REDIS_URL already has a db suffix
+        
         redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
         base_url = redis_url.rsplit("/", 1)[0] if redis_url.count("/") >= 3 else redis_url
         self.client = redis.Redis.from_url(f"{base_url}/1")
