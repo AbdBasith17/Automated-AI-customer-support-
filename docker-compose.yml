@@ -45,9 +45,11 @@ services:
       - ./ai-service-fastapi:/app
     env_file: ./ai-service-fastapi/.env
     environment:
-      - REDIS_URL=redis://redis:6379/0  # <--- ADD THIS LINE HERE
+      - REDIS_URL=redis://redis:6379/0  
       - CHROMA_HOST=chroma-db
       - CHROMA_PORT=8000
+      - KAFKA_BOOTSTRAP=kafka:9092          
+      - MONGO_URI=mongodb://mongo:27017/aion_analytics
     depends_on:
       - redis
       - chroma-db
@@ -140,11 +142,44 @@ services:
       - REDIS_URL=redis://redis:6379/0   
       - CHROMA_HOST=chroma-db
       - CHROMA_PORT=8000
+      - KAFKA_BOOTSTRAP=kafka:9092           
+      - MONGO_URI=mongodb://mongo:27017/aion_analytics
     depends_on:
       - redis
       - chroma-db
     networks:
-      - aion-network   
+      - aion-network  
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: aion-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - aion-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: aion-kafka
+    depends_on: [zookeeper]
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_LOG_RETENTION_HOURS: 168
+    networks:
+      - aion-network
+
+  mongo:
+    image: mongo:7
+    container_name: aion-mongo
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - aion-network 
 
 networks:
   aion-network:
@@ -153,3 +188,4 @@ networks:
 volumes:
   postgres_data:
   chroma_data:
+  mongo_data:

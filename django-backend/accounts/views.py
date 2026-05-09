@@ -15,6 +15,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from .helpers import get_tokens_for_user, get_user_data, set_auth_cookies
 from .models import OTPVerification, User
@@ -418,3 +419,22 @@ class ResetPasswordConfirmView(APIView):
         return Response(
             {"message": "Password updated. Access restored."}, status=status.HTTP_200_OK
         )
+
+
+class CustomTokenRefreshView(TokenRefreshView):
+    def post(self, request, *args, **kwargs):
+        
+        refresh_token = request.COOKIES.get('refresh_token')
+        
+       
+        if refresh_token:
+            request.data['refresh'] = refresh_token
+            
+       
+        response = super().post(request, *args, **kwargs)
+        
+        
+        if response.status_code == 200:
+            set_auth_cookies(response, response.data)
+            
+        return response

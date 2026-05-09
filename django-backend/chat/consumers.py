@@ -6,7 +6,23 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from .models import ChatSession
 from .services.dynamo_service import DynamoMessageService
+import os
+from datetime import datetime, timezone
 
+_kafka_producer = None
+
+def _get_kafka_producer():
+    global _kafka_producer
+    if _kafka_producer is None:
+        try:
+            from confluent_kafka import Producer as KafkaProducer
+            _kafka_producer = KafkaProducer({
+                "bootstrap.servers": os.getenv("KAFKA_BOOTSTRAP", "kafka:9092"),
+                "socket.timeout.ms": 3000,
+            })
+        except Exception as e:
+            print(f"[Kafka] Producer init failed (non-critical): {e}")
+    return _kafka_producer
 
 dynamo_db = DynamoMessageService()
 
@@ -31,6 +47,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
             })) 
     async def receive(self, text_data):
         print(f"--- Raw Data Received: {text_data} ---")
+        print(f"--- AUTH DEBUG ---")
+        print(f"User: {self.user}")
+        print(f"Is Authenticated: {self.user.is_authenticated if self.user else 'No User Object'}")
         
         try:
             data = json.loads(text_data)
@@ -49,8 +68,25 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await sync_to_async(dynamo_db.save_message)(self.session_id, "user", message_text)
             print("Saved to DynamoDB")
 
+        
+            producer = _get_kafka_producer()
+            if producer:
+                try:
+                    producer.produce(
+                        "chat.messages.all",
+                        key=self.session_id,
+                        value=json.dumps({
+                            "session_id": self.session_id,
+                            "role": "user",
+                            "user_email": user_metadata.get("email", "anonymous"),
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                        })
+                    )
+                    producer.poll(0)
+                except Exception as ke:
+                    print(f"[Kafka] user message produce error: {ke}")
             # 3. Start RAG Task
-            # We use asyncio.create_task so the socket stays open while the AI thinks
+            #  asyncio.create_task  - socket stays open while the AI thinks
             asyncio.create_task(self._dispatch_rag_task(message_text, user_metadata))
             print("Task Dispatched to Celery")
 

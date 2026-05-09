@@ -4,6 +4,8 @@ import { useAuth } from "../context/AuthContext";
 import { setAdminTab, selectAdminTab } from "../store/slices/Uislice";
 import DocumentManager from "./DocumentManager";
 
+import AnalyticsPanel from "./AnalyticsPanel";
+
 const SystemPending = ({ title }) => (
   <div className="flex flex-col items-center justify-center min-h-[400px] border-2 border-dashed border-slate-200 rounded-3xl bg-white/50">
     <div className="h-10 w-10 rounded-full border-4 border-slate-200 border-t-indigo-500 animate-spin mb-4" />
@@ -98,7 +100,7 @@ export default function AdminDashboard() {
 
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500" key={activeTab}>
           {activeTab === "docs"      && <DocumentManager />}
-          {activeTab === "analytics" && <SystemPending title="Analytics Engine" />}
+          {activeTab === "analytics" && <AnalyticsPanel />}
           {activeTab === "config"    && <SystemPending title="API Connectors" />}
           {activeTab === "logs"      && (
             <div className="bg-slate-900 rounded-3xl p-8 font-mono text-xs text-green-400 min-h-[450px] border border-slate-800 shadow-2xl overflow-hidden relative">

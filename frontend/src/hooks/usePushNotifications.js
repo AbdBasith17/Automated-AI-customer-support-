@@ -18,10 +18,10 @@ export const usePushNotifications = (user) => {
           });
 
           if (currentToken) {
-            console.log("fcf",currentToken)
-            // Use the user's email or unique ID as the session_id
+            // console.log("fcf",currentToken)
+            
             await authApi.registerFcmToken(user.id, currentToken);
-            console.log("FCM Token synced for:", user.id);
+           
           }
         }
       } catch (err) {

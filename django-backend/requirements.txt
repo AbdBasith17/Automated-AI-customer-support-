@@ -34,3 +34,5 @@ flower
 daphne
 channels
 channels-redis
+
+confluent-kafka>=2.3.0

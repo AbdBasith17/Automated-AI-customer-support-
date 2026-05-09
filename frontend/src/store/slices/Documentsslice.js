@@ -1,7 +1,5 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import axios from "axios";
-
-const BASE_URL = import.meta.env.VITE_API_URL?.replace("/auth", "") || "http://localhost:9001/api";
+import api from "../../api/auth"; // Using the centralized Axios instance
 
 // ─── Async Thunks ────────────────────────────────────────────────────────────
 
@@ -9,7 +7,8 @@ export const fetchDocuments = createAsyncThunk(
   "documents/fetchAll",
   async (_, { rejectWithValue }) => {
     try {
-      const res = await axios.get(`${BASE_URL}/documents/`, { withCredentials: true });
+      // The 'api' instance already has the baseURL and withCredentials
+      const res = await api.get("/documents/");
       return res.data;
     } catch (err) {
       return rejectWithValue(err.response?.data || { message: "Failed to load documents." });
@@ -23,8 +22,8 @@ export const uploadDocuments = createAsyncThunk(
     try {
       const formData = new FormData();
       files.forEach((file) => formData.append("files", file));
-      const res = await axios.post(`${BASE_URL}/documents/upload/`, formData, {
-        withCredentials: true,
+      
+      const res = await api.post("/documents/upload/", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       return res.data;
@@ -38,7 +37,7 @@ export const deleteDocument = createAsyncThunk(
   "documents/delete",
   async (id, { rejectWithValue }) => {
     try {
-      await axios.delete(`${BASE_URL}/documents/${id}/`, { withCredentials: true });
+      await api.delete(`/documents/${id}/`);
       return id;
     } catch (err) {
       return rejectWithValue(err.response?.data || { message: "Delete failed." });
@@ -59,7 +58,6 @@ const documentsSlice = createSlice({
   },
   reducers: {
     stageFiles(state, action) {
-      
       state.stagedFiles = [...state.stagedFiles, ...action.payload];
     },
     removeStagedFile(state, action) {
@@ -70,8 +68,8 @@ const documentsSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
-    // fetchDocuments
     builder
+      // fetchDocuments
       .addCase(fetchDocuments.pending, (state) => {
         state.fetchStatus = "loading";
       })
@@ -82,17 +80,14 @@ const documentsSlice = createSlice({
       .addCase(fetchDocuments.rejected, (state, action) => {
         state.fetchStatus = "failed";
         state.error = action.payload?.message;
-      });
-
-    // uploadDocuments
-    builder
+      })
+      // uploadDocuments
       .addCase(uploadDocuments.pending, (state) => {
         state.uploading = true;
         state.error = null;
       })
       .addCase(uploadDocuments.fulfilled, (state, action) => {
         state.uploading = false;
-       
         if (Array.isArray(action.payload)) {
           state.list = [...state.list, ...action.payload];
         }
@@ -101,19 +96,17 @@ const documentsSlice = createSlice({
       .addCase(uploadDocuments.rejected, (state, action) => {
         state.uploading = false;
         state.error = action.payload?.message;
+      })
+      // deleteDocument
+      .addCase(deleteDocument.fulfilled, (state, action) => {
+        state.list = state.list.filter((doc) => doc.id !== action.payload);
       });
-
-    // deleteDocument
-    builder.addCase(deleteDocument.fulfilled, (state, action) => {
-      state.list = state.list.filter((doc) => doc.id !== action.payload);
-    });
   },
 });
 
 export const { stageFiles, removeStagedFile, clearStagedFiles } = documentsSlice.actions;
 export default documentsSlice.reducer;
 
-// ─── Selectors ───────────────────────────────────────────────────────────────
 export const selectDocuments = (state) => state.documents.list;
 export const selectStagedFiles = (state) => state.documents.stagedFiles;
 export const selectUploading = (state) => state.documents.uploading;
