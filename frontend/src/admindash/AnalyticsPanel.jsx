@@ -3,7 +3,7 @@ import {
   AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { Ticket, Zap, Clock, Users, RefreshCw } from "lucide-react";
+import { Ticket, Zap, Clock, Users, RefreshCw ,CheckCircle } from "lucide-react";
 import { analyticsApi } from "../api/analyticsApi";
 
 const StatCard = ({ label, value, sub, icon, accent }) => (
@@ -112,28 +112,31 @@ const CachePerformance = ({ cache }) => {
 };
 
 export default function AnalyticsPanel() {
+  const [dynamoTickets, setDynamoTickets] = useState(null);
   const [summary, setSummary] = useState(null);
   const [tickets, setTickets] = useState([]);
   const [latency, setLatency] = useState([]);
-  const [cache, setCache]     = useState(null);
-  const [topics, setTopics]   = useState([]);
+  const [cache, setCache] = useState(null);
+  const [topics, setTopics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshed, setRefreshed] = useState(null);
 
   const fetchAll = async () => {
     setLoading(true);
-    const [s, t, l, c, q] = await Promise.all([
+    const [s, t, l, c, q,dt] = await Promise.all([
       analyticsApi.getSummary(),
       analyticsApi.getTicketVolume(30),
       analyticsApi.getLatency(7),
       analyticsApi.getCacheRate(),
       analyticsApi.getTopTopics(8),
+      analyticsApi.getDynamoTickets(),
     ]);
     if (s.data) setSummary(s.data);
     if (t.data) setTickets(t.data.map(d => ({ date: d._id?.slice(5), count: d.count })));
     if (l.data) setLatency(l.data.map(d => ({ date: d._id?.slice(5), p50: d.p50, p95: d.p95 })));
     if (c.data) setCache(c.data);
     if (q.data) setTopics(q.data.map(d => ({ topic: d.topic, count: d.count })));
+    if (dt.data) setDynamoTickets(dt.data);
     setRefreshed(new Date().toLocaleTimeString());
     setLoading(false);
   };
@@ -160,7 +163,7 @@ export default function AnalyticsPanel() {
         </button>
       </div>
 
-      {/* KPI cards — 4th is now Total Sessions */}
+      
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
           label="Total Tickets"
@@ -183,13 +186,24 @@ export default function AnalyticsPanel() {
           icon={<Clock size={16} className="text-amber-600" />}
           accent="bg-amber-50"
         />
-        {/* 4th card — Total Sessions instead of Top Issue */}
+        
         <StatCard
-          label="Total Sessions"
-          value={loading ? "…" : (summary?.total_sessions ?? 0)}
-          sub="Unique chat sessions"
-          icon={<Users size={16} className="text-violet-600" />}
-          accent="bg-violet-50"
+          label="Open Tickets"
+          value={loading ? "…" : (dynamoTickets?.open ?? 0)}
+          sub={`${dynamoTickets?.total ?? 0} total tickets`}
+          icon={<Ticket size={16} className="text-orange-600" />}
+          accent="bg-orange-50"
+        />
+        <StatCard
+          label="Resolved Tickets"
+          value={loading ? "…" : (dynamoTickets?.resolved ?? 0)}
+          sub={
+            dynamoTickets?.total
+              ? `${Math.round((dynamoTickets.resolved / dynamoTickets.total) * 100)}% resolution rate`
+              : "No tickets yet"
+          }
+          icon={<CheckCircle size={16} className="text-emerald-600" />}
+          accent="bg-emerald-50"
         />
       </div>
 

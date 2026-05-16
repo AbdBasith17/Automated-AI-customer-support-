@@ -85,6 +85,7 @@ CORS_ALLOWED_ORIGINS = [
     FRONTEND_URL,
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:8080",
 ]
 CORS_ALLOW_CREDENTIALS = True
 
@@ -92,6 +93,7 @@ CSRF_TRUSTED_ORIGINS = [
     FRONTEND_URL,
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:8080",
 ]
 
 SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin-allow-popups"

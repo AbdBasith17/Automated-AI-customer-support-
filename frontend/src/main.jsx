@@ -11,7 +11,7 @@ import App from "./App.jsx";
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 createRoot(document.getElementById("root")).render(
-  <StrictMode>
+  // <StrictMode>
     <GoogleOAuthProvider clientId={googleClientId}>
       <Provider store={store}>
         <PersistGate loading={null} persistor={persistor}>
@@ -23,5 +23,5 @@ createRoot(document.getElementById("root")).render(
         </PersistGate>
       </Provider>
     </GoogleOAuthProvider>
-  </StrictMode>
+  // </StrictMode>
 );

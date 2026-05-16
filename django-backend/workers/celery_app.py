@@ -19,6 +19,7 @@ app.conf.broker_connection_retry_on_startup = True
 app.conf.task_routes = {
     "embed_document_task": {"queue": "embedding"},
     "workers.tasks.cleanup_otps.cleanup_expired_otps": {"queue": "beat_tasks"},
+    "delete_document_cleanup_task": {"queue": "embedding"},
 }
 
 app.conf.beat_schedule = {

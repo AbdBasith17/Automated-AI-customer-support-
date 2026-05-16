@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path,include
 
 
 from .views import (
@@ -40,4 +40,6 @@ urlpatterns = [
     path("mfa/setup/", SetupMFAView.as_view(), name="mfa-setup"),
     path("mfa/activate/", ActivateMFAView.as_view(), name="mfa-activate"),
     path("mfa/verify-login/", VerifyMFALoginView.as_view(), name="mfa-verify-login"),
+
+     path("admin/", include("accounts.admin_urls")),
 ]

@@ -1,9 +1,9 @@
 import { useDispatch, useSelector } from "react-redux";
-import { FileUp, Settings, Activity, BarChart3, LogOut } from "lucide-react";
+import { FileUp, Settings, Activity, BarChart3, LogOut, Users } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { setAdminTab, selectAdminTab } from "../store/slices/Uislice";
 import DocumentManager from "./DocumentManager";
-
+import UserManagement from "./UserManagement";
 import AnalyticsPanel from "./AnalyticsPanel";
 
 const SystemPending = ({ title }) => (
@@ -22,8 +22,9 @@ export default function AdminDashboard() {
   const menuItems = [
     { id: "analytics", label: "Insights",       icon: <BarChart3 size={18} /> },
     { id: "docs",      label: "Knowledge Base",  icon: <FileUp size={18} />   },
-    { id: "config",    label: "Integrations",    icon: <Settings size={18} /> },
-    { id: "logs",      label: "System Logs",     icon: <Activity size={18} /> },
+    // { id: "config",    label: "Integrations",    icon: <Settings size={18} /> },
+    // { id: "logs",      label: "System Logs",     icon: <Activity size={18} /> },
+    { id: "users", label: "User Management", icon: <Users size={18} /> },
   ];
 
   return (
@@ -101,6 +102,7 @@ export default function AdminDashboard() {
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500" key={activeTab}>
           {activeTab === "docs"      && <DocumentManager />}
           {activeTab === "analytics" && <AnalyticsPanel />}
+          {activeTab === "users" && <UserManagement />}
           {activeTab === "config"    && <SystemPending title="API Connectors" />}
           {activeTab === "logs"      && (
             <div className="bg-slate-900 rounded-3xl p-8 font-mono text-xs text-green-400 min-h-[450px] border border-slate-800 shadow-2xl overflow-hidden relative">

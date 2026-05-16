@@ -11,7 +11,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
 
   // State Management
-  const [form, setForm] = useState({ email: "", password: "" , mfaToken: ""});
+  const [form, setForm] = useState({ email: "", password: "", mfaToken: "" });
   const [mfaCode, setMfaCode] = useState("");
   const [isMfaStep, setIsMfaStep] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -20,103 +20,103 @@ export default function LoginPage() {
 
 
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError("");
-  setLoading(true);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
-  const { data, error: loginError } = await login(form.email, form.password);
+    const { data, error: loginError } = await login(form.email, form.password);
 
-  if (loginError) {
-    setLoading(false);
-    setError(loginError.message);
-    return;
-  }
-
-  if (data?.mfa_required) {
-   
-    setForm(prev => ({ ...prev, mfaToken: data.mfa_token })); 
-    setIsMfaStep(true);
-    setLoading(false);
-    return;
-  }
-
-  if (data?.user) {
-    toast.success("Authentication Successful");
-    
-    
-    // console.log("Is Staff:", data.user.is_staff);
-
-    const isAdmin =  data.user.role === 'admin';
-   
-    if (isAdmin ) {
-      navigate("/admin", { replace: true });
-    } else {
-      navigate("/chat", { replace: true });
+    if (loginError) {
+      setLoading(false);
+      setError(loginError.message);
+      return;
     }
-  }
-};
-const handleMfaVerify = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setError("");
 
-  // USE THE TOKEN HERE:
-  const { data, error: mfaError } = await authApi.verifyMfaLogin(form.mfaToken, mfaCode);
+    if (data?.mfa_required) {
 
-  if (mfaError) {
-    setLoading(false);
-    setError(mfaError.message || "Invalid Authenticator Code.");
-    return;
-  }
-
-  if (data?.user) {
-    setUser(data.user); 
-    toast.success("Identity Confirmed");
-
-    const isAdmin = data.user.role === 'admin';
-    setTimeout(() => {
-      navigate(isAdmin ? "/admin" : "/chat", { replace: true });
+      setForm(prev => ({ ...prev, mfaToken: data.mfa_token }));
+      setIsMfaStep(true);
       setLoading(false);
-    }, 50); 
-  }
-};
+      return;
+    }
+
+    if (data?.user) {
+      toast.success("Authentication Successful");
 
 
-const handleGoogleSuccess = async (credentialResponse) => {
-  setLoading(true);
-  const { data, error: googleError } = await authApi.googleLogin({ 
-    token: credentialResponse.credential 
-  });
-  // console.log(credentialResponse)
+      // console.log("Is Staff:", data.user.is_staff);
 
-  if (googleError) {
-    setLoading(false);
-    toast.error(googleError?.message || "Google Sync Failed");
-    return;
-  }
+      const isAdmin = data.user.role === 'admin';
 
-  
-  if (data?.mfa_required) {
-  setForm(prev => ({ ...prev, mfaToken: data.mfa_token })); 
-  setIsMfaStep(true);
-  setLoading(false);
-  toast.info("MFA Required", { description: "Verify via Authenticator." });
-  return;
-}
+      if (isAdmin) {
+        navigate("/admin", { replace: true });
+      } else {
+        nnavigate("/chat", { replace: true, state: { forceNew: true } });
+      }
+    }
+  };
+  const handleMfaVerify = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
 
-  if (data?.user) {
-    setUser(data.user);
-    toast.success("Google Identity Verified");
-    
-    const isAdmin =  data.user.role === 'admin';
-    
-    setTimeout(() => {
-      navigate(isAdmin ? "/admin" : "/chat", { replace: true });
+    // USE THE TOKEN HERE:
+    const { data, error: mfaError } = await authApi.verifyMfaLogin(form.mfaToken, mfaCode);
+
+    if (mfaError) {
       setLoading(false);
-    }, 50);
-  }
-};
+      setError(mfaError.message || "Invalid Authenticator Code.");
+      return;
+    }
+
+    if (data?.user) {
+      setUser(data.user);
+      toast.success("Identity Confirmed");
+
+      const isAdmin = data.user.role === 'admin';
+      setTimeout(() => {
+        navigate(isAdmin ? "/admin" : "/chat", { replace: true });
+        setLoading(false);
+      }, 50);
+    }
+  };
+
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setLoading(true);
+    const { data, error: googleError } = await authApi.googleLogin({
+      token: credentialResponse.credential
+    });
+    // console.log(credentialResponse)
+
+    if (googleError) {
+      setLoading(false);
+      toast.error(googleError?.message || "Google Sync Failed");
+      return;
+    }
+
+
+    if (data?.mfa_required) {
+      setForm(prev => ({ ...prev, mfaToken: data.mfa_token }));
+      setIsMfaStep(true);
+      setLoading(false);
+      toast.info("MFA Required", { description: "Verify via Authenticator." });
+      return;
+    }
+
+    if (data?.user) {
+      setUser(data.user);
+      toast.success("Google Identity Verified");
+
+      const isAdmin = data.user.role === 'admin';
+
+      setTimeout(() => {
+        navigate(isAdmin ? "/admin" : "/chat", { replace: true });
+        setLoading(false);
+      }, 50);
+    }
+  };
 
 
   return (
@@ -183,15 +183,24 @@ const handleGoogleSuccess = async (credentialResponse) => {
             )}
 
             <div className="space-y-2 text-center">
-              <label className="font-mono text-[10px] uppercase tracking-[0.3em] text-slate-950 font-black">Secure Code</label>
+              <label
+                htmlFor="mfa-input"
+                className="font-mono text-[10px] uppercase tracking-[0.3em] text-slate-950 font-black"
+              >
+                Secure Code
+              </label>
+
+              {/* Hidden input for password managers to associate the MFA with the username */}
               <input type="text" name="email" style={{ display: 'none' }} autoComplete="username" />
+
               <input
+                id="mfa-input"
                 type="text"
-                maxLength="6"
+                name="one-time-code"
                 placeholder="000 000"
                 autoFocus
-                name="one-time-code"
-                autocomplete="one-time-code"
+                maxLength={6}
+                autoComplete="one-time-code"
                 inputMode="numeric"
                 className="w-full text-center font-mono text-4xl tracking-[0.4em] py-6 bg-slate-50 rounded-2xl border-2 border-slate-100 focus:border-indigo-500 focus:bg-white outline-none transition-all text-slate-950"
                 onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ""))}

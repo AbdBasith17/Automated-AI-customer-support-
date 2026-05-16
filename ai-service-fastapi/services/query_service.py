@@ -142,7 +142,7 @@ class QueryService:
         user_metadata: dict = None,
         collection_name: str = "enterprise_docs",
         chat_history: str = "",
-        has_existing_ticket: bool = False    # now passed in from tasks.py
+        has_existing_ticket: bool = False    
     ):
         try:
             start_time = time.time()
@@ -180,6 +180,11 @@ class QueryService:
             )
             docs = vector_db.similarity_search(optimized_query, k=5)
             context_text = "\n\n".join([d.page_content for d in docs]) if docs else ""
+            
+            if not context_text:
+                context_section = "No specific documentation found. Answer from general knowledge or ask the user to clarify their issue."
+            else:
+                context_section = context_text
 
             # ── Count AI turns for troubleshooting enforcement ────────────────
             ai_turn_count = chat_history.count("Ai:") if chat_history else 0
@@ -191,7 +196,7 @@ class QueryService:
             TICKET STATUS: {ticket_status}
 
             RULES:
-            1. Solve the issue using the provided Context first.
+            1. Solve the issue using the provided Context only.
             2. TROUBLESHOOTING: You must provide at least 3-4 distinct troubleshooting attempts in the history before creating a ticket.
             3. DUPLICATE PREVENTION: If TICKET STATUS is 'Already Created', DO NOT use the ticket tool again. Instead, tell the user the team is already working on it.
             4. If the user asks for a status and a ticket exists, acknowledge the reference number in history and explain that updates will be sent to {email}.
@@ -208,7 +213,7 @@ class QueryService:
             chain = gen_prompt | self.generator_with_tools
             ai_msg = chain.invoke({
                 "history": chat_history or "No history.",
-                "context": context_text,
+                "context": context_section,
                 "question": query,
                 "full_name": full_name,
                 "email": user_email,
@@ -259,7 +264,8 @@ class QueryService:
                         f"through your registered email ({user_email})."
                     ),
                     "status": "ticket_created",
-                    "ticket_key": jira_data.get("key")
+                    "ticket_key": jira_data.get("key"),
+                    "summary":    tool_args.get("summary"), 
                 }
 
             # ── Normal response ───────────────────────────────────────────────
@@ -273,6 +279,8 @@ class QueryService:
             if not ai_msg.tool_calls:
                 self.cache.set_cached_response(user_scoped_query, final_response)
                 print(f"[Cache] Set for {user_email}")
+            
+            # topic = self._extract_topic(query)
 
             self._produce("chat.messages.all", session_id, {
                 "session_id": session_id,
@@ -291,6 +299,43 @@ class QueryService:
             print(f"[QueryService] Error: {e}")
             raise e
 
+    def generate_resolution_announcement(
+        self,
+        ticket_key: str,
+        notes: str = "",
+        
+    ) -> str:
+        try:
+            prompt = ChatPromptTemplate.from_template(
+                "You are a friendly Aion Mobility support assistant.\n"
+                "Write a SHORT chat message (2-3 sentences max) telling the customer "
+                "their ticket has been resolved.\n\n"
+                "Rules:\n"
+                "- Use a warm, conversational tone — this appears directly in the chat UI\n"
+                "- Layout instruction: Start by explicitly stating that the ticket has been resolved, then immediately detail the resolution notes.\n"
+                "- Never use placeholders like [Name] or [Your Name]\n"
+                "- Mention the ticket reference number right at the beginning\n"
+                "- If resolution notes say 'Done' or are empty, just say the issue has been fixed\n"
+                "- Do NOT write an email — write a short chat message\n"
+                "- Sign off as 'Aion Support'\n\n"
+                "Ticket: {ticket_key}\n"
+                "Resolution notes: {notes}\n\n"
+                "Chat message:"
+            )
+
+            chain = prompt | self.generator_llm | StrOutputParser()
+            return chain.invoke({
+                "ticket_key": ticket_key,
+                
+                "notes":      notes if notes and notes.lower() not in ("done", "") else "The issue has been fixed.",
+            })
+
+        except Exception as e:
+            print(f"[ResolutionAnnouncement] Error: {e}")
+            return (
+                f"Great news! Your support ticket **{ticket_key}** has been resolved. "
+                f"If you run into any further issues, feel free to reach out. — Aion Support"
+            )
     # ── n8n / Jira webhook ────────────────────────────────────────────────────
 
     def _trigger_n8n_jira(self, summary: str, description: str, session_id: str):
@@ -307,4 +352,4 @@ class QueryService:
             raise Exception(f"n8n returned {response.status_code}")
         except Exception as e:
             print(f"[n8n] Webhook error: {e}")
-            raise   # propagates to get_response which returns a clean error message
+            raise  

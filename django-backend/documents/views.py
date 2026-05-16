@@ -8,6 +8,9 @@ from .models import DocumentMetadata
 from .serializers import DocumentMetadataSerializer
 from .services.s3_service import S3Service
 
+from rest_framework.exceptions import PermissionDenied
+
+from workers.tasks.delete_document import delete_document_cleanup
 
 class DocumentUploadView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -55,7 +58,31 @@ class DocumentUploadView(APIView):
             )
 
 
-from rest_framework.exceptions import PermissionDenied
+class DocumentDeleteView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, pk):
+        if not request.user.is_staff:
+            return Response({"error": "Admin only"}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            doc = DocumentMetadata.objects.get(pk=pk)
+            
+            # Prepare data for background cleanup
+            s3_key = doc.s3_key
+            doc_id = str(doc.id)
+
+            # 1. Delete from Postgres
+            doc.delete()
+
+            # 2.background cleanup  run on 'aion-celery-worker'
+            delete_document_cleanup.delay(s3_key, doc_id)
+
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except DocumentMetadata.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+
 
 
 class AdminDocumentListView(APIView):

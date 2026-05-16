@@ -123,3 +123,13 @@ class VectorService:
         finally:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
+
+    def delete_document_vectors(self, collection_name: str, document_id: str):
+        try:
+            collection = self.chroma_client.get_collection(name=collection_name)
+          
+            collection.delete(where={"document_id": document_id})
+            logger.info(f"Deleted vectors for document_id: {document_id}")
+        except Exception as e:
+            logger.error(f"Error deleting vectors for {document_id}: {e}")
+            raise

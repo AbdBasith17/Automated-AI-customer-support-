@@ -18,4 +18,5 @@ export const analyticsApi = {
   getLatency:      (days = 7)    => request({ method: "GET", url: `/ai/analytics/messages/latency?days=${days}` }),
   getCacheRate:    ()            => request({ method: "GET", url: "/ai/analytics/messages/cache-rate" }),
   getTopTopics:    (limit = 10)  => request({ method: "GET", url: `/ai/analytics/topics/top?limit=${limit}` }),
+  getDynamoTickets: () => request({ method: "GET", url: "/ai/analytics/tickets/dynamo-status" }),
 };
