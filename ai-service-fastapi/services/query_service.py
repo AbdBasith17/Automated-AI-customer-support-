@@ -161,7 +161,7 @@ class QueryService:
                     "latency_ms": int((time.time() - start_time) * 1000),
                     "cache_hit": True,
                     "sources_count": 0,
-                    "topic": query[:50],    # raw query for cache hits — no LLM call needed
+                    "topic": query[:50],    
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 })
                 return cached_response
@@ -196,7 +196,7 @@ class QueryService:
             TICKET STATUS: {ticket_status}
 
             RULES:
-            1. Solve the issue using the provided Context only.
+            1. Solve the issue using the provided Context first .
             2. TROUBLESHOOTING: You must provide at least 3-4 distinct troubleshooting attempts in the history before creating a ticket.
             3. DUPLICATE PREVENTION: If TICKET STATUS is 'Already Created', DO NOT use the ticket tool again. Instead, tell the user the team is already working on it.
             4. If the user asks for a status and a ticket exists, acknowledge the reference number in history and explain that updates will be sent to {email}.

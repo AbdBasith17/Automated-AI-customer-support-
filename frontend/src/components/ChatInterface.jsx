@@ -13,7 +13,7 @@ import {
   selectChatError,
   selectSessionId,
   upsertChatInList,
-  upsertTicketInList,  // ← was missing
+  upsertTicketInList,
   bumpSidebar,
 } from "../store/slices/Chatslice";
 
@@ -54,6 +54,75 @@ export default function ChatInterface() {
   const sessionId  = useSelector(selectSessionId);
   const hasStarted = messages.length > 0;
 
+  // ── VOICE SPEECH STATES (NEW CHANGES) ──────────────────────────────────────
+  const [isListening, setIsListening] = useState(false);
+  const [activeSpeakingId, setActiveSpeakingId] = useState(null);
+  const recognitionRef = useRef(null);
+
+  // Initialize Speech Recognition once
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.lang = "en-US";
+
+      rec.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setInput((prev) => (prev ? `${prev.trim()} ${transcript}` : transcript));
+        setIsListening(false);
+      };
+
+      rec.onerror = (e) => {
+        console.error("Speech recognition error", e);
+        setIsListening(false);
+      };
+
+      rec.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = rec;
+    }
+  }, []);
+
+  // Voice to Text trigger
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      alert("Voice recognition is not supported in this browser. Try Chrome or Safari.");
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+    } else {
+      setIsListening(true);
+      recognitionRef.current.start();
+    }
+  };
+
+  // Text to Speech replay trigger
+  const handleSpeak = (msgId, text) => {
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+      if (activeSpeakingId === msgId) {
+        setActiveSpeakingId(null);
+        return;
+      }
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+
+    utterance.onend = () => setActiveSpeakingId(null);
+    utterance.onerror = () => setActiveSpeakingId(null);
+
+    setActiveSpeakingId(msgId);
+    window.speechSynthesis.speak(utterance);
+  };
+
   // ── WebSocket ──────────────────────────────────────────────────────────────
   const connect = useCallback((sid) => {
     if (
@@ -80,7 +149,6 @@ export default function ChatInterface() {
           dispatch(addAiMessage(data.content));
         }
         else if (data.type === "sidebar_update") {
-          // Optimistic update immediately, then re-fetch after GSI propagates
           dispatch(upsertChatInList({
             session_id: data.session_id,
             topic:      data.topic,
@@ -140,6 +208,8 @@ export default function ChatInterface() {
         wsRef.current.close(1000, "Session switch / unmount");
         wsRef.current = null;
       }
+      // Stop speech if navigating away
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
     };
   }, [urlSessionId, connect, dispatch]);
 
@@ -151,7 +221,6 @@ export default function ChatInterface() {
   const handleSend = () => {
     if (!input.trim() || isThinking) return;
 
-    // Guard: don't send if socket isn't open
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       dispatch(setChatError("Connection lost. Reconnecting..."));
       return;
@@ -219,13 +288,32 @@ export default function ChatInterface() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Describe your technical query..."
+                    placeholder={isListening ? "Listening actively..." : "Describe your technical query..."}
                     rows={3}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-[2rem] p-8 pr-20 focus:ring-8 focus:ring-indigo-50 focus:bg-white focus:border-indigo-200 outline-none transition-all resize-none text-lg text-slate-900 shadow-sm"
+                    className={`w-full bg-slate-50 border rounded-[2rem] p-8 pr-32 outline-none transition-all resize-none text-lg text-slate-900 shadow-sm ${
+                      isListening ? "border-indigo-500 ring-8 ring-indigo-50 bg-indigo-50/10" : "border-slate-200 focus:ring-8 focus:ring-indigo-50 focus:bg-white focus:border-indigo-200"
+                    }`}
                   />
+                  
+                  {/* Mic Action Button (Landing) */}
+                  <button
+                    onClick={toggleListening}
+                    type="button"
+                    className={`absolute bottom-6 right-20 p-4 rounded-2xl border transition-all ${
+                      isListening 
+                        ? "bg-red-500 text-white border-red-600 animate-pulse shadow-red-100" 
+                        : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                    }`}
+                    title="Speak message"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                  </button>
+
                   <button
                     onClick={handleSend}
-                    disabled={!input.trim()}
+                    disabled={!input.trim() || isListening}
                     className="absolute bottom-6 right-6 p-4 bg-slate-950 text-white rounded-2xl hover:bg-indigo-600 disabled:opacity-30 transition-all shadow-xl"
                   >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -256,9 +344,32 @@ export default function ChatInterface() {
                       : "bg-slate-50 border border-slate-100 text-slate-800 rounded-tl-none"
                   }`}>
                     {msg.role === "ai" && (
-                      <span className="font-mono text-[9px] uppercase tracking-widest text-indigo-600 font-black block mb-2">
-                        Aion_Intelligence
-                      </span>
+                      <div className="flex items-center justify-between mb-2 gap-8">
+                        <span className="font-mono text-[9px] uppercase tracking-widest text-indigo-600 font-black block">
+                          Aion_Intelligence
+                        </span>
+                        
+                        {/* Speaker Output Button */}
+                        <button
+                          onClick={() => handleSpeak(msg.id, msg.content)}
+                          className={`p-1.5 rounded-lg border transition-all ${
+                            activeSpeakingId === msg.id 
+                              ? "bg-indigo-600 text-white border-indigo-700 animate-bounce" 
+                              : "text-slate-400 border-slate-200 bg-white hover:text-slate-900 hover:border-slate-300"
+                          }`}
+                          title={activeSpeakingId === msg.id ? "Stop reading" : "Read aloud"}
+                        >
+                          {activeSpeakingId === msg.id ? (
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          ) : (
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M12 18.75V5.25L7.75 9.5H4.5v5h3.25L12 18.75z" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
                     )}
                     <p className="whitespace-pre-wrap">{msg.content}</p>
                   </div>
@@ -294,12 +405,38 @@ export default function ChatInterface() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={isThinking}
-              placeholder={isThinking ? "Aion is thinking..." : "Transmit follow-up..."}
-              className="w-full pl-8 pr-32 py-5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-200 outline-none transition-all disabled:opacity-50"
+              placeholder={
+                isListening 
+                  ? "Listening actively..." 
+                  : isThinking 
+                    ? "Aion is thinking..." 
+                    : "Transmit follow-up..."
+              }
+              className={`w-full pl-8 pr-44 py-5 bg-slate-50 border rounded-2xl outline-none transition-all disabled:opacity-50 ${
+                isListening ? "border-indigo-500 bg-indigo-50/10 ring-4 ring-indigo-50" : "border-slate-100 focus:bg-white focus:border-indigo-200"
+              }`}
             />
+            
+            {/* Mic Action Button (Docked Footer) */}
+            <button
+              onClick={toggleListening}
+              disabled={isThinking}
+              type="button"
+              className={`absolute right-32 top-1/2 -translate-y-1/2 p-2.5 rounded-xl border transition-all ${
+                isListening 
+                  ? "bg-red-500 text-white border-red-600 animate-pulse" 
+                  : "bg-white text-slate-500 border-slate-200 hover:text-slate-900 hover:bg-slate-50"
+              }`}
+              title="Speak message"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+              </svg>
+            </button>
+
             <button
               onClick={handleSend}
-              disabled={isThinking || !input.trim()}
+              disabled={isThinking || !input.trim() || isListening}
               className="absolute right-2 top-1/2 -translate-y-1/2 px-6 py-3 bg-slate-950 text-white rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-30 transition-all"
             >
               {isThinking ? "Thinking..." : "Transmit"}

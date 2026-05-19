@@ -1,4 +1,4 @@
-# workers/tasks/embed_document.py
+
 import requests
 from celery import shared_task
 from django.apps import apps

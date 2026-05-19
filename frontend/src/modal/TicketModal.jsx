@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, ExternalLink, AlertCircle, Loader2 } from 'lucide-react';
 import { authApi } from '../api/auth';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const TicketModal = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState('open');

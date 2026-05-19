@@ -2,6 +2,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { FileUp, Settings, Activity, BarChart3, LogOut, Users } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { setAdminTab, selectAdminTab } from "../store/slices/Uislice";
+import { toast } from "sonner"; // Ensure your sonner instance is imported
 import DocumentManager from "./DocumentManager";
 import UserManagement from "./UserManagement";
 import AnalyticsPanel from "./AnalyticsPanel";
@@ -24,8 +25,25 @@ export default function AdminDashboard() {
     { id: "docs",      label: "Knowledge Base",  icon: <FileUp size={18} />   },
     // { id: "config",    label: "Integrations",    icon: <Settings size={18} /> },
     // { id: "logs",      label: "System Logs",     icon: <Activity size={18} /> },
-    { id: "users", label: "User Management", icon: <Users size={18} /> },
+    { id: "users",     label: "User Management", icon: <Users size={18} /> },
   ];
+
+  // Triggers the interactive Sonner action loop block
+  const handleLogoutConfirmation = () => {
+    toast.warning("Terminate your session?", {
+      description: "Are you sure you want to log out?",
+      position: "top-center",
+      duration: Infinity, // Keeps the toast active until an action is selected
+      action: {
+        label: "Confirm",
+        onClick: () => logout(),
+      },
+      cancel: {
+        label: "Cancel",
+        onClick: () => {}, // Automatically handles closing the message window
+      },
+    });
+  };
 
   return (
     <div className="flex h-screen bg-[#F8FAFC]">
@@ -70,7 +88,7 @@ export default function AdminDashboard() {
             </div>
           )}
           <button
-            onClick={logout}
+            onClick={handleLogoutConfirmation}
             className="flex items-center gap-2 text-red-400 text-[10px] font-black uppercase tracking-widest hover:text-red-300 transition-colors px-1"
           >
             <LogOut size={12} />
@@ -102,7 +120,7 @@ export default function AdminDashboard() {
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500" key={activeTab}>
           {activeTab === "docs"      && <DocumentManager />}
           {activeTab === "analytics" && <AnalyticsPanel />}
-          {activeTab === "users" && <UserManagement />}
+          {activeTab === "users"     && <UserManagement />}
           {activeTab === "config"    && <SystemPending title="API Connectors" />}
           {activeTab === "logs"      && (
             <div className="bg-slate-900 rounded-3xl p-8 font-mono text-xs text-green-400 min-h-[450px] border border-slate-800 shadow-2xl overflow-hidden relative">

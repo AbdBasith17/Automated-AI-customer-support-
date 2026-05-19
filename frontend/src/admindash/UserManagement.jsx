@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
-import { Users, ShieldCheck, UserCheck, UserX, RefreshCw, Crown } from "lucide-react";
+import { Users, ShieldCheck, UserCheck, UserX, RefreshCw } from "lucide-react";
 import { adminApi } from "../api/adminApi";
 
-// ── Reusable stat card — matches AnalyticsPanel's StatCard exactly ─────────
+// ── Reusable stat card ──────────────────────────────────────────────────────
 const StatCard = ({ label, value, sub, icon, accent }) => (
   <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex items-start gap-4">
     <div className={`p-2.5 rounded-xl ${accent}`}>{icon}</div>
@@ -59,11 +59,9 @@ export default function UserManagement() {
   const [loading,   setLoading]   = useState(true);
   const [toggling,  setToggling]  = useState({});
   const [refreshed, setRefreshed] = useState(null);
-  const [filters,   setFilters]   = useState({
-    search: "", is_active: "", is_mfa_enabled: "", role: "",
-  });
-  const [page, setPage] = useState(1);
-  const [toast, setToast] = useState(null);
+  const [filters,   setFilters]   = useState({ search: "", is_active: "", is_mfa_enabled: "" });
+  const [page,      setPage]      = useState(1);
+  const [toast,     setToast]     = useState(null);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -72,7 +70,7 @@ export default function UserManagement() {
 
   // ── Fetch analytics ──────────────────────────────────────────────────────
   const fetchAnalytics = useCallback(async () => {
-    const { data, error } = await adminApi.getUserAnalytics();
+    const { data } = await adminApi.getUserAnalytics();
     if (data) {
       setAnalytics(data);
       setRefreshed(new Date().toLocaleTimeString());
@@ -88,9 +86,8 @@ export default function UserManagement() {
     if (filters.search)         params.search         = filters.search;
     if (filters.is_active)      params.is_active      = filters.is_active;
     if (filters.is_mfa_enabled) params.is_mfa_enabled = filters.is_mfa_enabled;
-    if (filters.role)           params.role           = filters.role;
 
-    const { data, error } = await adminApi.getUsers(params);
+    const { data } = await adminApi.getUsers(params);
     if (data) {
       setUsers(data.users);
       setMeta({ total: data.total, page: data.page, total_pages: data.total_pages });
@@ -123,19 +120,6 @@ export default function UserManagement() {
     setToggling((t) => ({ ...t, [user.id]: false }));
   };
 
-  // ── Change role ──────────────────────────────────────────────────────────
-  const changeRole = async (user, role) => {
-    const { error } = await adminApi.updateUser(user.id, { role });
-    if (!error) {
-      setUsers((prev) =>
-        prev.map((u) => u.id === user.id ? { ...u, role } : u)
-      );
-      showToast(`${user.email} → ${role}`);
-    } else {
-      showToast("Failed to update role", "error");
-    }
-  };
-
   const filterChange = (key, val) => {
     setFilters((f) => ({ ...f, [key]: val }));
     setPage(1);
@@ -163,10 +147,8 @@ export default function UserManagement() {
       return acc;
     }, []);
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-
       {/* Toast notification */}
       {toast && (
         <div className={`fixed top-6 right-6 z-50 px-4 py-3 rounded-xl text-xs font-mono shadow-xl border ${
@@ -191,8 +173,8 @@ export default function UserManagement() {
         </button>
       </div>
 
-      {/* KPI stat cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
+      {/* KPI stat cards (Refactored to cleanly support 5 metrics) */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <StatCard
           label="Total Users"
           value={analytics?.total_users ?? "…"}
@@ -228,13 +210,6 @@ export default function UserManagement() {
           icon={<UserCheck size={16} className="text-sky-600" />}
           accent="bg-sky-50"
         />
-        <StatCard
-          label="Admins"
-          value={analytics?.admin_count ?? "…"}
-          sub="Privileged accounts"
-          icon={<Crown size={16} className="text-amber-600" />}
-          accent="bg-amber-50"
-        />
       </div>
 
       {/* Filters bar */}
@@ -255,11 +230,6 @@ export default function UserManagement() {
           onChange={(v) => filterChange("is_mfa_enabled", v)}
           options={[["", "All MFA"], ["true", "MFA On"], ["false", "MFA Off"]]}
         />
-        <FilterSelect
-          value={filters.role}
-          onChange={(v) => filterChange("role", v)}
-          options={[["", "All Roles"], ["admin", "Admin"], ["user", "User"]]}
-        />
         <span className="ml-auto text-[10px] font-mono text-slate-400 uppercase tracking-widest">
           {meta.total} result{meta.total !== 1 ? "s" : ""}
         </span>
@@ -271,7 +241,7 @@ export default function UserManagement() {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="border-b border-slate-100">
-                {["User", "Role", "Status", "MFA", "Verified", "Joined", "Active"].map((h) => (
+                {["User", "Status", "MFA", "Verified", "Joined", "Active"].map((h) => (
                   <th
                     key={h}
                     className="px-5 py-3.5 text-left text-[10px] font-mono uppercase tracking-widest text-slate-400 font-medium"
@@ -284,7 +254,7 @@ export default function UserManagement() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-16 text-center">
+                  <td colSpan={6} className="px-5 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="h-6 w-6 rounded-full border-2 border-slate-200 border-t-indigo-500 animate-spin" />
                       <p className="text-[10px] font-mono text-slate-300 uppercase tracking-widest">
@@ -296,7 +266,7 @@ export default function UserManagement() {
               ) : users.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={6}
                     className="px-5 py-16 text-center text-[10px] font-mono text-slate-300 uppercase tracking-widest"
                   >
                     No users found
@@ -310,7 +280,7 @@ export default function UserManagement() {
                       i % 2 === 1 ? "bg-slate-50/30" : ""
                     }`}
                   >
-                    {/* User */}
+                    {/* User Profile Summary */}
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
                         <div
@@ -327,55 +297,31 @@ export default function UserManagement() {
                       </div>
                     </td>
 
-                    {/* Role */}
-                    <td className="px-5 py-3.5">
-                      <select
-                        value={user.role}
-                        onChange={(e) => changeRole(user, e.target.value)}
-                        className="text-[10px] font-mono uppercase tracking-widest bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:border-indigo-300 cursor-pointer"
-                      >
-                        <option value="user">User</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                    </td>
-
-                    {/* Status */}
+                    {/* Status Badge */}
                     <td className="px-5 py-3.5">
                       <Badge
                         label={user.is_active ? "Active" : "Inactive"}
-                        className={
-                          user.is_active
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-rose-50 text-rose-600"
-                        }
+                        className={user.is_active ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-600"}
                       />
                     </td>
 
-                    {/* MFA */}
+                    {/* MFA Configuration */}
                     <td className="px-5 py-3.5">
                       <Badge
                         label={user.is_mfa_enabled ? "Enabled" : "Off"}
-                        className={
-                          user.is_mfa_enabled
-                            ? "bg-violet-50 text-violet-700"
-                            : "bg-slate-100 text-slate-400"
-                        }
+                        className={user.is_mfa_enabled ? "bg-violet-50 text-violet-700" : "bg-slate-100 text-slate-400"}
                       />
                     </td>
 
-                    {/* Verified */}
+                    {/* Verification Status */}
                     <td className="px-5 py-3.5">
                       <Badge
                         label={user.is_verified ? "Yes" : "No"}
-                        className={
-                          user.is_verified
-                            ? "bg-sky-50 text-sky-700"
-                            : "bg-amber-50 text-amber-600"
-                        }
+                        className={user.is_verified ? "bg-sky-50 text-sky-700" : "bg-amber-50 text-amber-600"}
                       />
                     </td>
 
-                    {/* Joined */}
+                    {/* Creation Timestamp */}
                     <td className="px-5 py-3.5 text-[10px] font-mono text-slate-400 whitespace-nowrap">
                       {new Date(user.date_joined).toLocaleDateString("en-GB", {
                         day: "2-digit",
@@ -384,7 +330,7 @@ export default function UserManagement() {
                       })}
                     </td>
 
-                    {/* Toggle */}
+                    {/* Operational Toggle Switch */}
                     <td className="px-5 py-3.5">
                       <Toggle
                         checked={user.is_active}
@@ -399,7 +345,7 @@ export default function UserManagement() {
           </table>
         </div>
 
-        {/* Pagination */}
+        {/* Pagination Controls */}
         {meta.total_pages > 1 && (
           <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-slate-100">
             <span className="text-[10px] font-mono text-slate-400 mr-2 uppercase tracking-widest">

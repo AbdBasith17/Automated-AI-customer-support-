@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import {
   AreaChart, Area, LineChart, Line,
+  PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { Ticket, Zap, Clock, Users, RefreshCw ,CheckCircle } from "lucide-react";
+import { Ticket, Zap, Clock, Users, RefreshCw, CheckCircle } from "lucide-react";
 import { analyticsApi } from "../api/analyticsApi";
 
 const StatCard = ({ label, value, sub, icon, accent }) => (
@@ -44,7 +45,6 @@ const TOOLTIP_STYLE = {
   itemStyle: { color: "#e2e8f0" },
 };
 
-// Clean ranked list for topics — no truncation issues
 const TopicsList = ({ topics }) => {
   if (!topics.length) return <Empty />;
   const max = topics[0]?.count || 1;
@@ -73,43 +73,70 @@ const TopicsList = ({ topics }) => {
   );
 };
 
-// Cache performance card content
 const CachePerformance = ({ cache }) => {
   if (!cache) return <Empty />;
-  const hitPct = (cache.hit_rate * 100).toFixed(1);
+
+  const hitPct  = cache.total ? (cache.hits   / cache.total) * 100 : 0;
+  const missPct = cache.total ? (cache.misses / cache.total) * 100 : 0;
+
+  const pieData = [
+    { name: "Hit",  value: cache.hits,   color: "#1d4ed8" },
+    { name: "Miss", value: cache.misses, color: "#e2e8f0" },
+  ];
+
   return (
-    <div className="flex flex-col justify-center h-44 gap-5 px-1">
-      <div className="text-center">
-        <p className="text-5xl font-black text-slate-900">
-          {hitPct}<span className="text-2xl text-slate-400">%</span>
-        </p>
-        <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 mt-1">Cache Hit Rate</p>
-      </div>
-      <div className="space-y-2">
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] font-mono text-slate-400 w-10 text-right">{cache.hits}</span>
-          <div className="flex-1 bg-slate-100 rounded-full h-1.5">
-            <div
-              className="bg-emerald-500 h-1.5 rounded-full transition-all"
-              style={{ width: `${cache.total ? (cache.hits / cache.total) * 100 : 0}%` }}
-            />
-          </div>
-          <span className="text-[10px] font-mono text-emerald-600 w-8">HIT</span>
+    <div className="flex flex-col items-center gap-4 py-2">
+      {/* Full round donut */}
+      <div className="relative w-[160px] h-[160px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={pieData}
+              cx="50%"
+              cy="50%"
+              innerRadius={52}
+              outerRadius={70}
+              paddingAngle={2}
+              dataKey="value"
+              stroke="none"
+            >
+              {pieData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.color} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+
+        {/* Center readout */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <span className="text-2xl font-black text-slate-900 leading-none">
+            {hitPct.toFixed(1)}%
+          </span>
+          <span className="text-[10px] font-mono text-slate-400 mt-0.5 tracking-wide">
+            HIT RATE
+          </span>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] font-mono text-slate-400 w-10 text-right">{cache.misses}</span>
-          <div className="flex-1 bg-slate-100 rounded-full h-1.5">
-            <div
-              className="bg-slate-300 h-1.5 rounded-full transition-all"
-              style={{ width: `${cache.total ? (cache.misses / cache.total) * 100 : 0}%` }}
-            />
-          </div>
-          <span className="text-[10px] font-mono text-slate-400 w-8">MISS</span>
+      </div>
+
+      {/* Hit / Miss labels */}
+      <div className="flex gap-6 text-[11px] font-mono">
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-blue-700 shrink-0" />
+          <span className="text-slate-500">HIT</span>
+          <span className="text-slate-900 font-semibold">{cache.hits.toLocaleString()}</span>
+          <span className="text-slate-400">({hitPct.toFixed(1)}%)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" />
+          <span className="text-slate-500">MISS</span>
+          <span className="text-slate-900 font-semibold">{cache.misses.toLocaleString()}</span>
+          <span className="text-slate-400">({missPct.toFixed(1)}%)</span>
         </div>
       </div>
     </div>
   );
 };
+
 
 export default function AnalyticsPanel() {
   const [dynamoTickets, setDynamoTickets] = useState(null);
@@ -123,7 +150,7 @@ export default function AnalyticsPanel() {
 
   const fetchAll = async () => {
     setLoading(true);
-    const [s, t, l, c, q,dt] = await Promise.all([
+    const [s, t, l, c, q, dt] = await Promise.all([
       analyticsApi.getSummary(),
       analyticsApi.getTicketVolume(30),
       analyticsApi.getLatency(7),
@@ -131,11 +158,11 @@ export default function AnalyticsPanel() {
       analyticsApi.getTopTopics(8),
       analyticsApi.getDynamoTickets(),
     ]);
-    if (s.data) setSummary(s.data);
-    if (t.data) setTickets(t.data.map(d => ({ date: d._id?.slice(5), count: d.count })));
-    if (l.data) setLatency(l.data.map(d => ({ date: d._id?.slice(5), p50: d.p50, p95: d.p95 })));
-    if (c.data) setCache(c.data);
-    if (q.data) setTopics(q.data.map(d => ({ topic: d.topic, count: d.count })));
+    if (s.data)  setSummary(s.data);
+    if (t.data)  setTickets(t.data.map(d => ({ date: d._id?.slice(5), count: d.count })));
+    if (l.data)  setLatency(l.data.map(d => ({ date: d._id?.slice(5), p50: d.p50, p95: d.p95 })));
+    if (c.data)  setCache(c.data);
+    if (q.data)  setTopics(q.data.map(d => ({ topic: d.topic, count: d.count })));
     if (dt.data) setDynamoTickets(dt.data);
     setRefreshed(new Date().toLocaleTimeString());
     setLoading(false);
@@ -163,20 +190,24 @@ export default function AnalyticsPanel() {
         </button>
       </div>
 
-      
+      {/* Metrics Row */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
-          label="Total Tickets"
-          value={loading ? "…" : (summary?.total_tickets ?? 0)}
-          sub={`${summary?.open_tickets ?? 0} open`}
-          icon={<Ticket size={16} className="text-indigo-600" />}
-          accent="bg-indigo-50"
+          label="Open Tickets"
+          value={loading ? "…" : (dynamoTickets?.open ?? 0)}
+          sub={`${dynamoTickets?.total ?? 0} total sequences`}
+          icon={<Ticket size={16} className="text-orange-600" />}
+          accent="bg-orange-50"
         />
         <StatCard
-          label="Cache Hit Rate"
-          value={loading ? "…" : `${hitPct}%`}
-          sub={`${cache?.hits ?? 0} hits / ${cache?.total ?? 0} total`}
-          icon={<Zap size={16} className="text-emerald-600" />}
+          label="Closed Tickets"
+          value={loading ? "…" : (dynamoTickets?.resolved ?? 0)}
+          sub={
+            dynamoTickets?.total
+              ? `${Math.round((dynamoTickets.resolved / dynamoTickets.total) * 100)}% resolution rate`
+              : "No actions recorded"
+          }
+          icon={<CheckCircle size={16} className="text-emerald-600" />}
           accent="bg-emerald-50"
         />
         <StatCard
@@ -186,24 +217,12 @@ export default function AnalyticsPanel() {
           icon={<Clock size={16} className="text-amber-600" />}
           accent="bg-amber-50"
         />
-        
         <StatCard
-          label="Open Tickets"
-          value={loading ? "…" : (dynamoTickets?.open ?? 0)}
-          sub={`${dynamoTickets?.total ?? 0} total tickets`}
-          icon={<Ticket size={16} className="text-orange-600" />}
-          accent="bg-orange-50"
-        />
-        <StatCard
-          label="Resolved Tickets"
-          value={loading ? "…" : (dynamoTickets?.resolved ?? 0)}
-          sub={
-            dynamoTickets?.total
-              ? `${Math.round((dynamoTickets.resolved / dynamoTickets.total) * 100)}% resolution rate`
-              : "No tickets yet"
-          }
-          icon={<CheckCircle size={16} className="text-emerald-600" />}
-          accent="bg-emerald-50"
+          label="Cache Hit Rate"
+          value={loading ? "…" : `${hitPct}%`}
+          sub={`${cache?.hits ?? 0} hits / ${cache?.total ?? 0} total`}
+          icon={<Zap size={16} className="text-indigo-600" />}
+          accent="bg-indigo-50"
         />
       </div>
 
@@ -247,12 +266,10 @@ export default function AnalyticsPanel() {
 
       {/* Charts row 2 */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        {/* Topics — clean ranked list, no truncation issues */}
         <ChartCard title="Top Query Topics" sub="By frequency" loading={loading}>
           <TopicsList topics={topics} />
         </ChartCard>
 
-        {/* Cache performance */}
         <ChartCard title="Cache Performance" sub="Hit vs miss breakdown" loading={loading}>
           <CachePerformance cache={cache} />
         </ChartCard>
