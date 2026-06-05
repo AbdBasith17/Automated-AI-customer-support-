@@ -4,6 +4,7 @@ psycopg2-binary
 djangorestframework
 django-cors-headers
 djangorestframework-simplejwt
+django-redis>=5.4.0
 
 google-auth
 google-auth-httplib2
@@ -11,11 +12,9 @@ google-auth-oauthlib
 
 pyotp==2.9.0
 qrcode==7.4.2
-pillow==10.2.0  
+pillow>=10.2.0
 
-black
-isort
-flake8
+
 
 django-storages
 boto3
@@ -36,3 +35,5 @@ channels
 channels-redis
 
 confluent-kafka>=2.3.0
+
+tox

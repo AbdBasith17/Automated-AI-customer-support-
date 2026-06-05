@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   setSessionId,
@@ -11,7 +11,6 @@ import {
   selectMessages,
   selectThinking,
   selectChatError,
-  selectSessionId,
   upsertChatInList,
   upsertTicketInList,
   bumpSidebar,
@@ -36,9 +35,11 @@ function getGreeting() {
   return "Good evening";
 }
 
+const MotionDiv = motion.div;
+const MotionFooter = motion.footer;
+
 export default function ChatInterface() {
   const { urlSessionId } = useParams();
-  const navigate         = useNavigate();
   const dispatch         = useDispatch();
 
   const [input, setInput]   = useState("");
@@ -47,11 +48,11 @@ export default function ChatInterface() {
   const reconnectCount       = useRef(0);
   const reconnectTimer       = useRef(null);
   const isMounted            = useRef(true);
+  const connectRef           = useRef(null);
 
   const messages   = useSelector(selectMessages);
   const isThinking = useSelector(selectThinking);
   const apiError   = useSelector(selectChatError);
-  const sessionId  = useSelector(selectSessionId);
   const hasStarted = messages.length > 0;
 
   // ── VOICE SPEECH STATES (NEW CHANGES) ──────────────────────────────────────
@@ -186,13 +187,17 @@ export default function ChatInterface() {
       if (event.code !== 1000 && reconnectCount.current < MAX_RECONNECTS) {
         reconnectCount.current += 1;
         reconnectTimer.current = setTimeout(() => {
-          if (isMounted.current) connect(sid);
+          if (isMounted.current) connectRef.current?.(sid);
         }, RECONNECT_DELAY_MS);
       } else if (reconnectCount.current >= MAX_RECONNECTS) {
         dispatch(setChatError("Connection lost. Please refresh."));
       }
     };
   }, [dispatch]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -266,7 +271,7 @@ export default function ChatInterface() {
           {!hasStarted ? (
 
             /* ── Landing / initial state ─────────────────────────────────── */
-            <motion.div
+            <MotionDiv
               key="landing"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -322,12 +327,12 @@ export default function ChatInterface() {
                   </button>
                 </div>
               </div>
-            </motion.div>
+            </MotionDiv>
 
           ) : (
 
             /* ── Chat messages ───────────────────────────────────────────── */
-            <motion.div
+            <MotionDiv
               key="chat"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -386,14 +391,14 @@ export default function ChatInterface() {
               )}
 
               <div ref={scrollRef} className="h-24" />
-            </motion.div>
+            </MotionDiv>
           )}
         </AnimatePresence>
       </main>
 
       {/* DOCKED INPUT — only after first message */}
       {hasStarted && (
-        <motion.footer
+        <MotionFooter
           initial={{ y: 100 }}
           animate={{ y: 0 }}
           className="p-6 md:p-8 bg-white border-t border-slate-50"
@@ -442,7 +447,7 @@ export default function ChatInterface() {
               {isThinking ? "Thinking..." : "Transmit"}
             </button>
           </div>
-        </motion.footer>
+        </MotionFooter>
       )}
     </div>
   );

@@ -1,5 +1,6 @@
 # celery.py
 import os
+
 from celery import Celery
 from celery.schedules import crontab
 
@@ -10,7 +11,8 @@ app = Celery(
     include=[
         "workers.tasks.embed_document",
         "workers.tasks.cleanup_otps",
-    ]
+        "workers.tasks.delete_document",
+    ],
 )
 
 app.config_from_object("django.conf:settings", namespace="CELERY")
@@ -28,7 +30,6 @@ app.conf.beat_schedule = {
         "schedule": crontab(hour=0, minute=0),
     },
 }
-
 
 
 @app.task(bind=True, ignore_result=True)

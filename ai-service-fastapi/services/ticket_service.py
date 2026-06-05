@@ -1,8 +1,9 @@
-import boto3
 import os
 import time
-from botocore.exceptions import ClientError
+
+import boto3
 from boto3.dynamodb.conditions import Key
+from botocore.exceptions import ClientError
 
 
 class TicketService:
@@ -22,22 +23,24 @@ class TicketService:
         user_email: str,
         session_id: str,
         topic: str,
-        summary: str = "",  
+        summary: str = "",
         description: str = "",
     ) -> bool:
         try:
             now = str(time.time_ns())
-            self.table.put_item(Item={
-                "ticket_key":  ticket_key,
-                "user_email":  user_email,
-                "session_id":  session_id,
-                "status":      "open",
-                "topic":       topic,
-                "summary":     summary, 
-                "description": description[:300] if description else "",
-                "created_at":  now,
-                "updated_at":  now,
-            })
+            self.table.put_item(
+                Item={
+                    "ticket_key": ticket_key,
+                    "user_email": user_email,
+                    "session_id": session_id,
+                    "status": "open",
+                    "topic": topic,
+                    "summary": summary,
+                    "description": description[:300] if description else "",
+                    "created_at": now,
+                    "updated_at": now,
+                }
+            )
             print(f"[TicketService] Created: {ticket_key} - {summary}")
             return True
         except Exception as e:
@@ -58,14 +61,14 @@ class TicketService:
 
     def resolve_ticket(self, ticket_key: str, resolution_notes: str = "") -> bool:
         try:
-            now         = str(time.time_ns())
+            now = str(time.time_ns())
             update_expr = "SET #st = :s, updated_at = :ua, resolved_at = :ra"
-            expr_names  = {"#st": "status"}
+            expr_names = {"#st": "status"}
             expr_values = {":s": "resolved", ":ua": now, ":ra": now}
 
             if resolution_notes:
-                update_expr       += ", resolution_notes = :rn"
-                expr_values[":rn"]  = resolution_notes
+                update_expr += ", resolution_notes = :rn"
+                expr_values[":rn"] = resolution_notes
 
             self.table.update_item(
                 Key={"ticket_key": ticket_key},

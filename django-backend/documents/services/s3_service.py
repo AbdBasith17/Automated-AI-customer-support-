@@ -18,3 +18,36 @@ class S3Service:
 
     def delete_file(self, s3_key):
         self.s3.delete_object(Bucket=self.bucket, Key=s3_key)
+
+    def generate_presigned_url(
+        self, s3_key, expiration=3600, action_type="view", filename=None
+    ):
+        """
+        Generates a secure presigned URL.
+        action_type="view" -> Opens inline in browser tab.
+        action_type="download" -> Forces direct browser download.
+        """
+        # 1. Base disposition type
+        disposition_type = "inline" if action_type == "view" else "attachment"
+
+        # 2. Attach the filename if provided
+        if filename:
+            # Clean the filename to prevent header breaks and ensure it ends with .pdf
+            safe_name = filename.replace('"', "").replace(";", "")
+            if not safe_name.lower().endswith(".pdf"):
+                safe_name += ".pdf"
+
+            content_disposition = f'{disposition_type}; filename="{safe_name}"'
+        else:
+            content_disposition = disposition_type
+
+        return self.s3.generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": self.bucket,
+                "Key": s3_key,
+                "ResponseContentDisposition": content_disposition,
+                "ResponseContentType": "application/pdf",
+            },
+            ExpiresIn=expiration,
+        )

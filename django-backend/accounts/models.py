@@ -9,20 +9,20 @@ from .managers import UserManager
 
 
 class User(AbstractBaseUser, PermissionsMixin):
-
     ROLE_ADMIN = "admin"
     ROLE_USER = "user"
-
     ROLE_CHOICES = [
         (ROLE_ADMIN, "Admin"),
         (ROLE_USER, "User"),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    email = models.EmailField(unique=True)
+    email = models.EmailField(unique=True)  # unique=True already creates an index
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
-    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default=ROLE_USER)
+    role = models.CharField(
+        max_length=10, choices=ROLE_CHOICES, default=ROLE_USER, db_index=True
+    )  # ADD — used in every permission check
     is_verified = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
@@ -43,12 +43,19 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 
 class OTPVerification(models.Model):
-
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     code = models.CharField(max_length=6)
     is_used = models.BooleanField(default=False)
     expires_at = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            # Cleanup task queries: WHERE is_used=False AND expires_at < now()
+            models.Index(fields=["is_used", "expires_at"], name="otp_cleanup_idx"),
+            # Login flow queries: WHERE user_id=X AND is_used=False
+            models.Index(fields=["user", "is_used"], name="otp_user_used_idx"),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.expires_at:

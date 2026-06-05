@@ -4,7 +4,6 @@ import django
 from django.conf import settings
 from django.core.mail import send_mail
 
-# 1. Setup Django environment
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
 django.setup()
 

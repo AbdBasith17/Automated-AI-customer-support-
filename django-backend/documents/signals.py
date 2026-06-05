@@ -27,5 +27,4 @@ def trigger_document_processing(sender, instance, created, **kwargs):
             f"committed to DB — queued for embedding."
         )
 
-    
     transaction.on_commit(queue_task)

@@ -1,15 +1,17 @@
 import os
 import time
-import boto3
 import traceback
+
+import boto3
+from asgiref.sync import async_to_sync
 from boto3.dynamodb.conditions import Key
 from celery import shared_task
-from asgiref.sync import async_to_sync
 from channels_redis.core import RedisChannelLayer
+
 from services.query_service import QueryService
 from services.ticket_service import TicketService
 
-query_service  = None
+query_service = None
 ticket_service = TicketService()
 
 
@@ -31,13 +33,15 @@ def _get_dynamo_table():
 
 def fetch_history_from_dynamo(session_id: str, limit: int = 20) -> str:
     try:
-        table    = _get_dynamo_table()
+        table = _get_dynamo_table()
         response = table.query(
             KeyConditionExpression=Key("session_id").eq(session_id),
             ScanIndexForward=False,
             Limit=limit,
         )
-        items = [m for m in response.get("Items", []) if m.get("role") in ("user", "ai")]
+        items = [
+            m for m in response.get("Items", []) if m.get("role") in ("user", "ai")
+        ]
         items.reverse()
         history_str = "\n".join(
             f"{m['role'].capitalize()}: {m['content']}" for m in items
@@ -50,7 +54,7 @@ def fetch_history_from_dynamo(session_id: str, limit: int = 20) -> str:
 
 def get_session_topic(session_id: str) -> str:
     try:
-        table    = _get_dynamo_table()
+        table = _get_dynamo_table()
         response = table.query(
             KeyConditionExpression=Key("session_id").eq(session_id),
             ScanIndexForward=True,
@@ -79,17 +83,17 @@ def save_ai_message(
     """
     try:
         table = _get_dynamo_table()
-        item  = {
+        item = {
             "session_id": str(session_id),
-            "timestamp":  str(time.time_ns()),
+            "timestamp": str(time.time_ns()),
             "user_email": user_email,
-            "topic":      topic,
-            "role":       "ai",
-            "content":    content,
-            "sources":    sources or [],
+            "topic": topic,
+            "role": "ai",
+            "content": content,
+            "sources": sources or [],
         }
         if status:
-            item["status"] = status  # e.g. "ticket_created" — for UI badge only
+            item["status"] = status
         table.put_item(Item=item)
         print(f"[Worker] AI message saved for session {session_id}")
     except Exception as e:
@@ -104,13 +108,15 @@ def process_rag_query(
     session_id: str,
     user_data: dict = None,
 ):
-    q_service  = get_query_service()
+    q_service = get_query_service()
     user_email = (user_data or {}).get("email", "")
 
     try:
-        history         = fetch_history_from_dynamo(session_id)
-        existing_ticket = ticket_service.session_has_ticket(session_id)  # clean GSI query
-        topic           = get_session_topic(session_id)
+        history = fetch_history_from_dynamo(session_id)
+        existing_ticket = ticket_service.session_has_ticket(
+            session_id
+        )  # clean GSI query
+        topic = get_session_topic(session_id)
 
         final_response = q_service.get_response(
             query=text,
@@ -121,12 +127,14 @@ def process_rag_query(
             has_existing_ticket=existing_ticket,
         )
 
-        answer     = final_response.get("answer", "")
-        sources    = final_response.get("sources", [])
-        status     = final_response.get("status")
-        ticket_key = final_response.get("ticket_key") if status == "ticket_created" else None
+        answer = final_response.get("answer", "")
+        sources = final_response.get("sources", [])
+        status = final_response.get("status")
+        ticket_key = (
+            final_response.get("ticket_key") if status == "ticket_created" else None
+        )
 
-        # Save chat message — no ticket_key, just status badge
+        # Save chat message - status badge
         save_ai_message(
             session_id=session_id,
             content=answer,
@@ -148,13 +156,13 @@ def process_rag_query(
             )
 
         payload = {
-            "type":       "new_message",
-            "role":       "ai",
-            "content":    answer,
-            "sources":    sources,
+            "type": "new_message",
+            "role": "ai",
+            "content": answer,
+            "sources": sources,
             "session_id": session_id,
-            "status":     status,
-            "ticket_key": ticket_key,  # frontend uses this to trigger sidebar refresh
+            "status": status,
+            "ticket_key": ticket_key,
         }
 
     except Exception as e:
@@ -164,14 +172,14 @@ def process_rag_query(
             raise self.retry(exc=e, countdown=5)
         except self.MaxRetriesExceededError:
             payload = {
-                "type":       "new_message",
-                "role":       "ai",
-                "content":    "I encountered an error processing your request. Please try again.",
-                "sources":    [],
+                "type": "new_message",
+                "role": "ai",
+                "content": "I encountered an error processing your request. Please try again.",
+                "sources": [],
                 "session_id": session_id,
             }
 
-    redis_url     = os.getenv("REDIS_URL", "redis://redis:6379/0")
+    redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
     channel_layer = RedisChannelLayer(hosts=[redis_url])
     async_to_sync(channel_layer.group_send)(
         f"chat_{session_id}",

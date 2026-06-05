@@ -1,8 +1,8 @@
-from django.urls import path,include
-
+from django.urls import include, path
 
 from .views import (
     ActivateMFAView,
+    CustomTokenRefreshView,
     GoogleLoginView,
     LoginView,
     LogoutView,
@@ -14,8 +14,6 @@ from .views import (
     SetupMFAView,
     VerifyMFALoginView,
     VerifyOTPView,
-    CustomTokenRefreshView,
-    
 )
 
 urlpatterns = [
@@ -40,6 +38,5 @@ urlpatterns = [
     path("mfa/setup/", SetupMFAView.as_view(), name="mfa-setup"),
     path("mfa/activate/", ActivateMFAView.as_view(), name="mfa-activate"),
     path("mfa/verify-login/", VerifyMFALoginView.as_view(), name="mfa-verify-login"),
-
-     path("admin/", include("accounts.admin_urls")),
+    path("admin/", include("accounts.admin_urls")),
 ]

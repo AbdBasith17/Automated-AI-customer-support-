@@ -1,11 +1,12 @@
 import { useDispatch, useSelector } from "react-redux";
-import { FileUp, Settings, Activity, BarChart3, LogOut, Users } from "lucide-react";
+import { FileUp, Settings, Activity, BarChart3, LogOut, Users ,Library } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { setAdminTab, selectAdminTab } from "../store/slices/Uislice";
 import { toast } from "sonner"; // Ensure your sonner instance is imported
 import DocumentManager from "./DocumentManager";
 import UserManagement from "./UserManagement";
 import AnalyticsPanel from "./AnalyticsPanel";
+import AdminResourceManager from "./AdminResourceManager";
 
 const SystemPending = ({ title }) => (
   <div className="flex flex-col items-center justify-center min-h-[400px] border-2 border-dashed border-slate-200 rounded-3xl bg-white/50">
@@ -25,6 +26,7 @@ export default function AdminDashboard() {
     { id: "docs",      label: "Knowledge Base",  icon: <FileUp size={18} />   },
     // { id: "config",    label: "Integrations",    icon: <Settings size={18} /> },
     // { id: "logs",      label: "System Logs",     icon: <Activity size={18} /> },
+    { id: "resources", label: "User Resources",  icon: <Library size={18} /> },
     { id: "users",     label: "User Management", icon: <Users size={18} /> },
   ];
 
@@ -120,6 +122,7 @@ export default function AdminDashboard() {
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500" key={activeTab}>
           {activeTab === "docs"      && <DocumentManager />}
           {activeTab === "analytics" && <AnalyticsPanel />}
+          {activeTab === "resources" && <AdminResourceManager />}
           {activeTab === "users"     && <UserManagement />}
           {activeTab === "config"    && <SystemPending title="API Connectors" />}
           {activeTab === "logs"      && (

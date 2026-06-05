@@ -1,48 +1,49 @@
-import os
+import asyncio
 import json
+import os
 import time
 import traceback
-import asyncio
-from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Any
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from typing import Any, Dict
 
 import boto3
 from asgiref.sync import async_to_sync
-
-from fastapi import FastAPI, HTTPException, Depends, APIRouter, Request
+from channels_redis.core import RedisChannelLayer
+from confluent_kafka import Producer as KafkaProducer
+from dotenv import load_dotenv
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel
-from dotenv import load_dotenv
 from starlette.status import HTTP_403_FORBIDDEN
-from channels_redis.core import RedisChannelLayer
-from confluent_kafka import Producer as KafkaProducer
 
 load_dotenv()
 
-from services.vector_service import VectorService
 from services.cache_service import CacheService
 from services.ticket_service import TicketService
+from services.vector_service import VectorService
 from workers.kafka_consumer import start_kafka_consumer
-
 
 vector_service: VectorService | None = None
 ticket_service = TicketService()
-executor       = ThreadPoolExecutor(max_workers=4)
+executor = ThreadPoolExecutor(max_workers=4)
 
 from services.query_service import QueryService
+
 
 def get_query_service():
     return QueryService()
 
 
-kafka_producer = KafkaProducer({
-    "bootstrap.servers":    os.getenv("KAFKA_BOOTSTRAP", "kafka:9092"),
-    "socket.timeout.ms":    5000,
-    "delivery.timeout.ms":  10000,
-})
+kafka_producer = KafkaProducer(
+    {
+        "bootstrap.servers": os.getenv("KAFKA_BOOTSTRAP", "kafka:9092"),
+        "socket.timeout.ms": 5000,
+        "delivery.timeout.ms": 10000,
+    }
+)
 
 
 @asynccontextmanager
@@ -62,7 +63,7 @@ async def lifespan(app: FastAPI):
     executor.shutdown(wait=True)
 
 
-app = FastAPI(title="Aion AI Service", lifespan=lifespan)
+app = FastAPI(title="Aion AI Service", root_path="/api/ai", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -72,7 +73,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_KEY_NAME   = "X-Internal-API-Key"
+API_KEY_NAME = "X-Internal-API-Key"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
 
@@ -122,11 +123,13 @@ async def ingest_document(
             kafka_producer.produce(
                 "cache.invalidate",
                 key=data.collection_name,
-                value=json.dumps({
-                    "collection": data.collection_name,
-                    "source":     data.s3_key,
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }),
+                value=json.dumps(
+                    {
+                        "collection": data.collection_name,
+                        "source": data.s3_key,
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                ),
             )
             kafka_producer.poll(0)
         except Exception as ke:
@@ -172,9 +175,11 @@ def get_session_user_email(session_id: str) -> str:
         dynamodb = boto3.resource(
             "dynamodb", region_name=os.getenv("AWS_REGION", "ap-south-1")
         )
-        table    = dynamodb.Table(os.getenv("DYNAMODB_MESSAGES_TABLE", "AionChatMessages"))
+        table = dynamodb.Table(os.getenv("DYNAMODB_MESSAGES_TABLE", "AionChatMessages"))
         response = table.query(
-            KeyConditionExpression=boto3.dynamodb.conditions.Key("session_id").eq(session_id),
+            KeyConditionExpression=boto3.dynamodb.conditions.Key("session_id").eq(
+                session_id
+            ),
             Limit=1,
             ScanIndexForward=True,
         )
@@ -191,51 +196,52 @@ def save_resolution_message(session_id: str, content: str):
     Ticket status is updated separately in AionTickets via TicketService.
     """
     try:
-        dynamodb   = boto3.resource(
+        dynamodb = boto3.resource(
             "dynamodb", region_name=os.getenv("AWS_REGION", "ap-south-1")
         )
-        table      = dynamodb.Table(os.getenv("DYNAMODB_MESSAGES_TABLE", "AionChatMessages"))
+        table = dynamodb.Table(os.getenv("DYNAMODB_MESSAGES_TABLE", "AionChatMessages"))
         user_email = get_session_user_email(session_id)
 
-        table.put_item(Item={
-            "session_id": str(session_id),
-            "timestamp":  str(time.time_ns()),
-            "role":       "ai",
-            "content":    content,
-            "status":     "ticket_resolved",
-            "sources":    [],
-            "user_email": user_email,
-        })
+        table.put_item(
+            Item={
+                "session_id": str(session_id),
+                "timestamp": str(time.time_ns()),
+                "role": "ai",
+                "content": content,
+                "status": "ticket_resolved",
+                "sources": [],
+                "user_email": user_email,
+            }
+        )
     except Exception as e:
         print(f"[FastAPI] save_resolution_message error: {e}")
 
 
-
 _ticket_service = TicketService()
+
 
 @router.post("/webhook/ticket-update")
 async def ticket_resolved_notification(request: Request):
-    data       = await request.json()
+    data = await request.json()
     session_id = data.get("session_id")
     ticket_key = data.get("ticket_key")
 
-    resolution_notes = data.get("resolution_notes", "The technical team has completed the fix.")
+    resolution_notes = data.get(
+        "resolution_notes", "The technical team has completed the fix."
+    )
 
-    query_svc     = get_query_service()
+    query_svc = get_query_service()
     human_content = query_svc.generate_resolution_announcement(
-        ticket_key=ticket_key,
-        notes=resolution_notes
+        ticket_key=ticket_key, notes=resolution_notes
     )
 
     save_resolution_message(session_id, human_content)
 
-    
     _ticket_service.resolve_ticket(
-        ticket_key=ticket_key,
-        resolution_notes=resolution_notes
+        ticket_key=ticket_key, resolution_notes=resolution_notes
     )
 
-    redis_url     = os.getenv("REDIS_URL", "redis://aion-redis:6379/0")
+    redis_url = os.getenv("REDIS_URL", "redis://aion-redis:6379/0")
     channel_layer = RedisChannelLayer(hosts=[redis_url])
 
     await channel_layer.group_send(
@@ -243,16 +249,17 @@ async def ticket_resolved_notification(request: Request):
         {
             "type": "ai_response_handler",
             "payload": {
-                "type":       "ai_message",
-                "role":       "ai",
-                "content":    human_content,
+                "type": "ai_message",
+                "role": "ai",
+                "content": human_content,
                 "session_id": session_id,
-                "status":     "ticket_closed",
+                "status": "ticket_closed",
                 "ticket_key": ticket_key,
-            }
-        }
+            },
+        },
     )
     return {"status": "ticket_closed_notification_sent"}
+
 
 dynamodb = boto3.resource(
     "dynamodb",
@@ -263,36 +270,38 @@ dynamodb = boto3.resource(
 table = dynamodb.Table("AionUserTokens")
 
 
-
 @router.post("/register-token")
 async def register_fcm_token(request: Request):
     try:
-        # 2. Manually grab the dict from the request body
+        #  Manually grab the dict from the request body
         data = await request.json()
-        
+
         user_email = data.get("user_email")
         fcm_token = data.get("fcm_token")
 
         if not user_email or not fcm_token:
             return {"status": "error", "message": "Payload missing email or token"}
 
-        # 3. Use the working logic you had before
-        table.put_item(Item={
-            "session_id": user_email,
-            "fcm_token": fcm_token,
-            "updated_at": str(int(time.time())),
-        })
-        
+        #   working logic
+        table.put_item(
+            Item={
+                "session_id": user_email,
+                "fcm_token": fcm_token,
+                "updated_at": str(int(time.time())),
+            }
+        )
+
         print(f"[FCM] Token registered for {user_email}")
         return {"message": "Token registered successfully"}
 
     except Exception as e:
         print(f"[FCM] Error: {e}")
-        # Send the actual error string back to help you debug in the browser
+        # debug
         raise HTTPException(status_code=500, detail=str(e))
 
 
 app.include_router(router)
 
 from api.v1.endpoints.analytics import router as analytics_router
+
 app.include_router(analytics_router)

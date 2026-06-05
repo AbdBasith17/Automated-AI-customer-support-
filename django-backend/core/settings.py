@@ -14,7 +14,7 @@ SECRET_KEY = env("SECRET_KEY")
 DEBUG = env.bool("DEBUG", default=False)
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost"])
 
-INTERNAL_API_KEY=env("INTERNAL_API_KEY")
+INTERNAL_API_KEY = env("INTERNAL_API_KEY")
 
 INSTALLED_APPS = [
     "daphne",
@@ -49,18 +49,12 @@ CHANNEL_LAYERS = {
 }
 
 
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "accounts.authenticate.CustomJWTAuthentication",
-    ),
-}
-
 SIMPLE_JWT = {
-    'AUTH_COOKIE': 'access_token',
-    'AUTH_COOKIE_REFRESH': 'refresh_token',
-    'AUTH_COOKIE_HTTP_ONLY': True,  
-    'AUTH_COOKIE_PATH': '/',
-    'AUTH_COOKIE_SAMESITE': 'Lax',
+    "AUTH_COOKIE": "access_token",
+    "AUTH_COOKIE_REFRESH": "refresh_token",
+    "AUTH_COOKIE_HTTP_ONLY": True,
+    "AUTH_COOKIE_PATH": "/",
+    "AUTH_COOKIE_SAMESITE": "Lax",
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "ROTATE_REFRESH_TOKENS": True,
@@ -127,6 +121,7 @@ DATABASES = {
         "PASSWORD": env("DB_PASSWORD"),
         "HOST": env("DB_HOST"),
         "PORT": env("DB_PORT"),
+        "CONN_MAX_AGE": 60,
     }
 }
 
@@ -202,4 +197,42 @@ CELERY_TIMEZONE = "UTC"
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
 
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": env("REDIS_URL", default="redis://redis:6379/1"),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+    },
+    "view_cache": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": env("REDIS_URL", default="redis://redis:6379/2"),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+        "KEY_PREFIX": "aion",
+    },
+}
 
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "accounts.authenticate.CustomJWTAuthentication",
+    ),
+    "DEFAULT_THROTTLE_CACHE": "view_cache",
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "100/day",
+        "user": "1000/day",
+        "login": "5/min",
+        "otp": "3/min",
+        "document_upload": "10/min",
+        "document_admin": "60/min",
+        "resource_admin": "60/min",
+        "resource_user": "40/min",
+        "resource_download": "20/min",
+    },
+}

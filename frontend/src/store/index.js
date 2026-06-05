@@ -6,9 +6,9 @@ import {
 } from "redux-persist";
 import storage from "redux-persist/lib/storage"; 
 
-import authReducer from "./slices/authSlice";
-import uiReducer from "./slices/uiSlice";
-import chatReducer from "./slices/chatSlice"; // ✅ 1. Import the chat reducer
+import authReducer from "./slices/authslice";
+import uiReducer from "./slices/Uislice";
+import chatReducer from "./slices/Chatslice";
 
 const rootReducer = combineReducers({
   auth: authReducer,

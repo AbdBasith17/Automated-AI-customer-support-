@@ -140,7 +140,6 @@ const CachePerformance = ({ cache }) => {
 
 export default function AnalyticsPanel() {
   const [dynamoTickets, setDynamoTickets] = useState(null);
-  const [summary, setSummary] = useState(null);
   const [tickets, setTickets] = useState([]);
   const [latency, setLatency] = useState([]);
   const [cache, setCache] = useState(null);
@@ -150,15 +149,13 @@ export default function AnalyticsPanel() {
 
   const fetchAll = async () => {
     setLoading(true);
-    const [s, t, l, c, q, dt] = await Promise.all([
-      analyticsApi.getSummary(),
+    const [t, l, c, q, dt] = await Promise.all([
       analyticsApi.getTicketVolume(30),
       analyticsApi.getLatency(7),
       analyticsApi.getCacheRate(),
       analyticsApi.getTopTopics(8),
       analyticsApi.getDynamoTickets(),
     ]);
-    if (s.data)  setSummary(s.data);
     if (t.data)  setTickets(t.data.map(d => ({ date: d._id?.slice(5), count: d.count })));
     if (l.data)  setLatency(l.data.map(d => ({ date: d._id?.slice(5), p50: d.p50, p95: d.p95 })));
     if (c.data)  setCache(c.data);
@@ -168,6 +165,7 @@ export default function AnalyticsPanel() {
     setLoading(false);
   };
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchAll(); }, []);
 
   const avgP50 = latency.length

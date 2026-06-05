@@ -8,14 +8,17 @@ import { documentApi } from "../api/documentApi";
 
 // ── Status config ─────────────────────────────────────────────────────────────
 const STATUS = {
-  completed:  { label: "Indexed",    color: "text-emerald-600", bg: "bg-emerald-50",  icon: <CheckCircle2 size={11} /> },
+  indexed:    { label: "Indexed",    color: "text-emerald-600", bg: "bg-emerald-50",  icon: <CheckCircle2 size={11} /> },
   processing: { label: "Processing", color: "text-blue-600",    bg: "bg-blue-50",     icon: <Loader2 size={11} className="animate-spin" /> },
   pending:    { label: "Pending",    color: "text-amber-600",   bg: "bg-amber-50",    icon: <Clock size={11} /> },
   failed:     { label: "Failed",     color: "text-red-500",     bg: "bg-red-50",      icon: <AlertCircle size={11} /> },
 };
 
 const StatusBadge = ({ status }) => {
-  const cfg = STATUS[status] || STATUS.pending;
+  // Bulletproof mapping: force lowercase and trim spaces
+  const safeStatus = (status || "").toLowerCase().trim();
+  const cfg = STATUS[safeStatus] || STATUS.pending;
+  
   return (
     <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-full ${cfg.color} ${cfg.bg}`}>
       {cfg.icon} {cfg.label}
@@ -71,7 +74,11 @@ export default function DocumentManager() {
 
   // ── Auto-poll while any doc is pending or processing ──────────────────────
   useEffect(() => {
-    const hasActive = docs.some(d => d.status === "pending" || d.status === "processing");
+    const hasActive = docs.some(d => {
+      const s = (d.status || "").toLowerCase().trim();
+      return s === "pending" || s === "processing";
+    });
+    
     if (!hasActive) return;
     const timer = setInterval(() => fetchDocs(true), 5000);
     return () => clearInterval(timer);
@@ -80,9 +87,12 @@ export default function DocumentManager() {
   // ── Derived stats ──────────────────────────────────────────────────────────
   const stats = {
     total:      docs.length,
-    indexed:    docs.filter(d => d.status === "completed").length,
-    processing: docs.filter(d => d.status === "pending" || d.status === "processing").length,
-    failed:     docs.filter(d => d.status === "failed").length,
+    indexed:    docs.filter(d => (d.status || "").toLowerCase().trim() === "indexed").length,
+    processing: docs.filter(d => {
+      const s = (d.status || "").toLowerCase().trim();
+      return s === "pending" || s === "processing";
+    }).length,
+    failed:     docs.filter(d => (d.status || "").toLowerCase().trim() === "failed").length,
   };
 
   // ── File selection ─────────────────────────────────────────────────────────

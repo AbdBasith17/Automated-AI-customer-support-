@@ -14,13 +14,16 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 
 import AdminDashboard from "./admindash/AdminDashboard";
 
+
+import UserResourceList from "./pages/UserResourceList";
+
 function NavigationWrapper() {
   const location = useLocation();
 
   // We use .startsWith to ensure the Navbar shows up for /chat AND /chat/any-uuid
   const whiteList = ["/", "/docs", "/profile"];
   const isChatPath = location.pathname.startsWith("/chat");
-  
+
   const showNavbar = whiteList.includes(location.pathname) || isChatPath;
 
   // Optional: If you want the Sidebar in ChatPage to be the only navigation, 
@@ -71,6 +74,17 @@ export default function App() {
                 <AuthGuard>
                   <VerifiedGuard>
                     <ChatPage />
+                  </VerifiedGuard>
+                </AuthGuard>
+              }
+            />
+            {/* Added this block right above the /admin route */}
+            <Route
+              path="/docs"
+              element={
+                <AuthGuard>
+                  <VerifiedGuard>
+                    <UserResourceList />
                   </VerifiedGuard>
                 </AuthGuard>
               }

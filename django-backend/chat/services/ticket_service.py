@@ -1,7 +1,8 @@
-import boto3
 import os
-from botocore.exceptions import ClientError
+
+import boto3
 from boto3.dynamodb.conditions import Key
+from botocore.exceptions import ClientError
 
 
 class TicketService:

@@ -33,6 +33,7 @@ services:
     command: daphne -b 0.0.0.0 -p 8000 core.asgi:application
     networks:
       - aion-network
+  
 
   ai-service:
     build: ./ai-service-fastapi
@@ -171,6 +172,8 @@ services:
       KAFKA_LOG_RETENTION_HOURS: 168
     networks:
       - aion-network
+    
+   
 
   mongo:
     image: mongo:7

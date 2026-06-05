@@ -1,10 +1,11 @@
-import uuid
 import time
-from django.db import close_old_connections
+import uuid
+
 from channels.db import database_sync_to_async
-from django.contrib.auth.models import AnonymousUser
-from rest_framework_simplejwt.tokens import AccessToken
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser
+from django.db import close_old_connections
+from rest_framework_simplejwt.tokens import AccessToken
 
 User = get_user_model()
 
@@ -49,27 +50,16 @@ def get_token_from_scope(scope):
     headers = dict(scope.get("headers", {}))
     cookie_header = headers.get(b"cookie", b"").decode()
 
-    if cookie_header:
-        cookies = {
-            k.strip(): v
-            for k, v in [
-                pair.split("=", 1)
-                for pair in cookie_header.split(";")
-                if "=" in pair
-            ]
-        }
-        token = cookies.get("access_token") or cookies.get("access")
-        if token:
-            return token
+    if not cookie_header:
+        return None
 
-    query_string = scope.get("query_string", b"").decode()
-    if query_string:
-        params = dict(
-            qc.split("=") for qc in query_string.split("&") if "=" in qc
+    cookies = {
+        k.strip(): v
+        for k, v in (
+            pair.split("=", 1) for pair in cookie_header.split(";") if "=" in pair
         )
-        return params.get("token")
-
-    return None
+    }
+    return cookies.get("access_token") or cookies.get("access")
 
 
 class JWTAuthMiddleware:

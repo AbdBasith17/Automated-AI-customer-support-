@@ -1,18 +1,19 @@
-import os
-import uuid
-import boto3
-import tempfile
-import chromadb
 import logging
+import os
+import tempfile
+import uuid
+
+import boto3
+import chromadb
 import pymupdf4llm
 from docx import Document as DocxDocument
+from langchain_core.documents import Document
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.documents import Document
 
 logger = logging.getLogger(__name__)
 
-EMBED_BATCH_SIZE = 5  # kept small — Gemini is unreliable with large batches
+EMBED_BATCH_SIZE = 5
 
 
 class VectorService:
@@ -20,7 +21,7 @@ class VectorService:
         self.embeddings = GoogleGenerativeAIEmbeddings(
             model="models/gemini-embedding-2",
             google_api_key=os.getenv("GOOGLE_API_KEY"),
-            output_dimensionality=768
+            output_dimensionality=768,
         )
 
         self.splitter = RecursiveCharacterTextSplitter(
@@ -29,15 +30,15 @@ class VectorService:
         )
 
         self.s3 = boto3.client(
-            's3',
+            "s3",
             aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
             aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-            region_name=os.getenv("AWS_S3_REGION_NAME")
+            region_name=os.getenv("AWS_S3_REGION_NAME"),
         )
 
         self.chroma_client = chromadb.HttpClient(
             host=os.getenv("CHROMA_HOST", "chroma-db"),
-            port=int(os.getenv("CHROMA_PORT", 8000))
+            port=int(os.getenv("CHROMA_PORT", 8000)),
         )
 
     def _extract_text(self, file_path: str, suffix: str) -> str:
@@ -48,7 +49,7 @@ class VectorService:
             doc = DocxDocument(file_path)
             return "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
         elif suffix in [".md", ".txt"]:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 return f.read()
         else:
             raise ValueError(f"Unsupported file format: {suffix}")
@@ -85,7 +86,9 @@ class VectorService:
             metadatas=[metadata] * len(chunks),
         )
 
-    def process_from_s3(self, s3_key: str, bucket: str, collection_name: str, doc_metadata: dict) -> int:
+    def process_from_s3(
+        self, s3_key: str, bucket: str, collection_name: str, doc_metadata: dict
+    ) -> int:
         suffix = os.path.splitext(s3_key)[1].lower()
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -104,7 +107,7 @@ class VectorService:
             metadata = {
                 **doc_metadata,
                 "source": doc_metadata.get("source", s3_key),
-                "title": doc_metadata.get("title", s3_key.split('/')[-1]),
+                "title": doc_metadata.get("title", s3_key.split("/")[-1]),
             }
 
             logger.info(f"Embedding {len(chunks)} chunks...")
@@ -127,7 +130,7 @@ class VectorService:
     def delete_document_vectors(self, collection_name: str, document_id: str):
         try:
             collection = self.chroma_client.get_collection(name=collection_name)
-          
+
             collection.delete(where={"document_id": document_id})
             logger.info(f"Deleted vectors for document_id: {document_id}")
         except Exception as e:

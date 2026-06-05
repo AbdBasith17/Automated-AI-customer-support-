@@ -13,6 +13,7 @@ from google.oauth2 import id_token
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -31,6 +32,8 @@ from .utils import generate_otp, send_otp_email, send_password_reset_email
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "otp"
 
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
@@ -88,6 +91,8 @@ class VerifyOTPView(APIView):
 
 class ResendOTPView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "otp"
 
     def post(self, request):
 
@@ -119,6 +124,8 @@ class ResendOTPView(APIView):
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data, context={"request": request})
@@ -156,15 +163,21 @@ class LoginView(APIView):
 
 class GoogleLoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
 
     def post(self, request):
         token = request.data.get("token")
+        # print(f" token: {token}")
         if not token:
             return Response({"error": "Token is required"}, status=400)
 
         try:
             id_info = id_token.verify_oauth2_token(
-                token, google_requests.Request(), settings.GOOGLE_CLIENT_ID
+                token,
+                google_requests.Request(),
+                settings.GOOGLE_CLIENT_ID,
+                clock_skew_in_seconds=10,
             )
 
             email = id_info.get("email")
@@ -212,8 +225,10 @@ class GoogleLoginView(APIView):
 
             return set_auth_cookies(response, tokens)
 
-        except ValueError:
-            return Response({"error": "Invalid Google token"}, status=400)
+        except ValueError as e:
+
+            print(f"DEBUG: Google Token Verification Failed: {str(e)}")
+            return Response({"error": f"Invalid Google token: {str(e)}"}, status=400)
 
 
 class LogoutView(APIView):
@@ -292,6 +307,8 @@ class ActivateMFAView(APIView):
 
 class VerifyMFALoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
 
     def post(self, request):
         mfa_token = request.data.get("mfa_token")
@@ -349,6 +366,8 @@ class VerifyMFALoginView(APIView):
 
 class RequestPasswordResetView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "otp"
 
     def post(self, request):
         email = request.data.get("email")
@@ -423,18 +442,15 @@ class ResetPasswordConfirmView(APIView):
 
 class CustomTokenRefreshView(TokenRefreshView):
     def post(self, request, *args, **kwargs):
-        
-        refresh_token = request.COOKIES.get('refresh_token')
-        
-       
+
+        refresh_token = request.COOKIES.get("refresh_token")
+
         if refresh_token:
-            request.data['refresh'] = refresh_token
-            
-       
+            request.data["refresh"] = refresh_token
+
         response = super().post(request, *args, **kwargs)
-        
-        
+
         if response.status_code == 200:
             set_auth_cookies(response, response.data)
-            
+
         return response

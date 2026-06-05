@@ -4,10 +4,10 @@ import Sidebar from "../components/Sidebar";
 import ChatInterface from "../components/ChatInterface";
 
 export default function ChatPage() {
-  const { isLoggedIn, isLoading } = useAuth();
+  const { isLoggedIn, loading } = useAuth();
   const { urlSessionId } = useParams();
 
-  if (isLoading) return null; 
+  if (loading) return null; 
 
   if (!isLoggedIn) {
     return <Navigate to="/login" replace />;

@@ -1,18 +1,19 @@
+import json
 import os
 import time
-import json
-import requests
 from datetime import datetime, timezone
-from typing import Dict, Any
+from typing import Any, Dict
 
 import chromadb
+import requests
 from confluent_kafka import Producer as KafkaProducer
+from langchain_chroma import Chroma
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.tools import tool
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_groq import ChatGroq
-from langchain_chroma import Chroma
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.tools import tool
+
 from services.cache_service import CacheService
 
 
@@ -31,32 +32,34 @@ class QueryService:
         self.embeddings = GoogleGenerativeAIEmbeddings(
             model="models/gemini-embedding-2",
             google_api_key=os.getenv("GOOGLE_API_KEY"),
-            output_dimensionality=768
+            output_dimensionality=768,
         )
         self.rewriter_llm = ChatGroq(
             model="llama-3.1-8b-instant",
             groq_api_key=os.getenv("GROQ_API_KEY"),
-            temperature=0.1
+            temperature=0.1,
         )
         self.generator_llm = ChatGroq(
             model="llama-3.3-70b-versatile",
             groq_api_key=os.getenv("GROQ_API_KEY"),
-            temperature=0
+            temperature=0,
         )
         self.tools = [create_support_ticket]
         self.generator_with_tools = self.generator_llm.bind_tools(self.tools)
 
         self.chroma_client = chromadb.HttpClient(
             host=os.getenv("CHROMA_HOST", "chroma-db"),
-            port=int(os.getenv("CHROMA_PORT", 8000))
+            port=int(os.getenv("CHROMA_PORT", 8000)),
         )
         self.cache = CacheService()
 
-        self.kafka_producer = KafkaProducer({
-            "bootstrap.servers": os.getenv("KAFKA_BOOTSTRAP", "kafka:9092"),
-            "socket.timeout.ms": 5000,
-            "delivery.timeout.ms": 10000,
-        })
+        self.kafka_producer = KafkaProducer(
+            {
+                "bootstrap.servers": os.getenv("KAFKA_BOOTSTRAP", "kafka:9092"),
+                "socket.timeout.ms": 5000,
+                "delivery.timeout.ms": 10000,
+            }
+        )
 
     # ── Rewrite helpers ───────────────────────────────────────────────────────
 
@@ -70,14 +73,31 @@ class QueryService:
             return True
 
         reference_signals = [
-            "it ", "this ", "that ", "the same", "same issue", "same problem",
-            "still ", "again", "as before", "what about", "how about"
+            "it ",
+            "this ",
+            "that ",
+            "the same",
+            "same issue",
+            "same problem",
+            "still ",
+            "again",
+            "as before",
+            "what about",
+            "how about",
         ]
         if any(signal in q for signal in reference_signals):
             return True
 
-        followup_signals = ["also", "another", "more", "else", "instead",
-                            "besides", "additionally", "and what"]
+        followup_signals = [
+            "also",
+            "another",
+            "more",
+            "else",
+            "instead",
+            "besides",
+            "additionally",
+            "and what",
+        ]
         if any(q.startswith(w) or f" {w} " in q for w in followup_signals):
             return True
 
@@ -142,45 +162,57 @@ class QueryService:
         user_metadata: dict = None,
         collection_name: str = "enterprise_docs",
         chat_history: str = "",
-        has_existing_ticket: bool = False    
+        has_existing_ticket: bool = False,
     ):
         try:
             start_time = time.time()
-            user_email = user_metadata.get("email", "anonymous") if user_metadata else "anonymous"
-            full_name  = user_metadata.get("full_name", "Customer") if user_metadata else "Customer"
+            user_email = (
+                user_metadata.get("email", "anonymous")
+                if user_metadata
+                else "anonymous"
+            )
+            full_name = (
+                user_metadata.get("full_name", "Customer")
+                if user_metadata
+                else "Customer"
+            )
 
             # ── Cache check FIRST — before any LLM calls ──────────────────────
             user_scoped_query = f"{user_email}:{query}"
             cached_response = self.cache.get_cached_response(user_scoped_query)
             if cached_response:
                 print(f"[Cache] Hit for {user_email}")
-                self._produce("chat.messages.all", session_id, {
-                    "session_id": session_id,
-                    "role": "ai",
-                    "user_email": user_email,
-                    "latency_ms": int((time.time() - start_time) * 1000),
-                    "cache_hit": True,
-                    "sources_count": 0,
-                    "topic": query[:50],    
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                })
+                self._produce(
+                    "chat.messages.all",
+                    session_id,
+                    {
+                        "session_id": session_id,
+                        "role": "ai",
+                        "user_email": user_email,
+                        "latency_ms": int((time.time() - start_time) * 1000),
+                        "cache_hit": True,
+                        "sources_count": 0,
+                        "topic": query[:50],
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    },
+                )
                 return cached_response
 
-            # ── Topic extraction — only runs if we're generating a response ───
+            # ── Topic extraction - only runs if we're generating a response ───
             topic = self._extract_topic(query)
 
-            # ── Query rewrite — skipped when not needed ───────────────────────
+            # ── Query rewrite  ───────────────────────
             optimized_query = self._rewrite_query(query, chat_history)
 
             # ── ChromaDB retrieval ────────────────────────────────────────────
             vector_db = Chroma(
                 collection_name=collection_name,
                 embedding_function=self.embeddings,
-                client=self.chroma_client
+                client=self.chroma_client,
             )
             docs = vector_db.similarity_search(optimized_query, k=5)
             context_text = "\n\n".join([d.page_content for d in docs]) if docs else ""
-            
+
             if not context_text:
                 context_section = "No specific documentation found. Answer from general knowledge or ask the user to clarify their issue."
             else:
@@ -211,14 +243,16 @@ class QueryService:
 
             gen_prompt = ChatPromptTemplate.from_template(template)
             chain = gen_prompt | self.generator_with_tools
-            ai_msg = chain.invoke({
-                "history": chat_history or "No history.",
-                "context": context_section,
-                "question": query,
-                "full_name": full_name,
-                "email": user_email,
-                "ticket_status": ticket_status
-            })
+            ai_msg = chain.invoke(
+                {
+                    "history": chat_history or "No history.",
+                    "context": context_section,
+                    "question": query,
+                    "full_name": full_name,
+                    "email": user_email,
+                    "ticket_status": ticket_status,
+                }
+            )
 
             # ── Ticket creation branch ────────────────────────────────────────
             if ai_msg.tool_calls and not has_existing_ticket:
@@ -230,31 +264,37 @@ class QueryService:
                             "I want to make sure we've thoroughly explored all options before escalating. "
                             "Let me suggest a few more things to try first."
                         ),
-                        "status": "success"
+                        "status": "success",
                     }
 
                 tool_args = ai_msg.tool_calls[0]["args"]
                 jira_desc = f"CUSTOMER: {full_name} ({user_email})\n\nISSUE:\n{tool_args.get('description')}"
 
-                # n8n failure is now handled — never produces a bad ticket reference
+                # n8n failure handling
                 try:
-                    jira_data = self._trigger_n8n_jira(tool_args.get("summary"), jira_desc, session_id)
+                    jira_data = self._trigger_n8n_jira(
+                        tool_args.get("summary"), jira_desc, session_id
+                    )
                 except Exception:
                     return {
                         "answer": (
                             "I wasn't able to create a support ticket right now due to a system issue. "
                             "Please try again in a moment."
                         ),
-                        "status": "error"
+                        "status": "error",
                     }
 
-                self._produce("support.tickets.created", session_id, {
-                    "ticket_key": jira_data.get("key"),
-                    "session_id": session_id,
-                    "user_email": user_email,
-                    "summary": tool_args.get("summary"),
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                })
+                self._produce(
+                    "support.tickets.created",
+                    session_id,
+                    {
+                        "ticket_key": jira_data.get("key"),
+                        "session_id": session_id,
+                        "user_email": user_email,
+                        "summary": tool_args.get("summary"),
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    },
+                )
 
                 return {
                     "answer": (
@@ -265,7 +305,7 @@ class QueryService:
                     ),
                     "status": "ticket_created",
                     "ticket_key": jira_data.get("key"),
-                    "summary":    tool_args.get("summary"), 
+                    "summary": tool_args.get("summary"),
                 }
 
             # ── Normal response ───────────────────────────────────────────────
@@ -279,19 +319,23 @@ class QueryService:
             if not ai_msg.tool_calls:
                 self.cache.set_cached_response(user_scoped_query, final_response)
                 print(f"[Cache] Set for {user_email}")
-            
+
             # topic = self._extract_topic(query)
 
-            self._produce("chat.messages.all", session_id, {
-                "session_id": session_id,
-                "role": "ai",
-                "user_email": user_email,
-                "latency_ms": int((time.time() - start_time) * 1000),
-                "cache_hit": False,
-                "sources_count": len(docs),
-                "topic": topic,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            })
+            self._produce(
+                "chat.messages.all",
+                session_id,
+                {
+                    "session_id": session_id,
+                    "role": "ai",
+                    "user_email": user_email,
+                    "latency_ms": int((time.time() - start_time) * 1000),
+                    "cache_hit": False,
+                    "sources_count": len(docs),
+                    "topic": topic,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
 
             return final_response
 
@@ -303,7 +347,6 @@ class QueryService:
         self,
         ticket_key: str,
         notes: str = "",
-        
     ) -> str:
         try:
             prompt = ChatPromptTemplate.from_template(
@@ -324,11 +367,16 @@ class QueryService:
             )
 
             chain = prompt | self.generator_llm | StrOutputParser()
-            return chain.invoke({
-                "ticket_key": ticket_key,
-                
-                "notes":      notes if notes and notes.lower() not in ("done", "") else "The issue has been fixed.",
-            })
+            return chain.invoke(
+                {
+                    "ticket_key": ticket_key,
+                    "notes": (
+                        notes
+                        if notes and notes.lower() not in ("done", "")
+                        else "The issue has been fixed."
+                    ),
+                }
+            )
 
         except Exception as e:
             print(f"[ResolutionAnnouncement] Error: {e}")
@@ -336,11 +384,16 @@ class QueryService:
                 f"Great news! Your support ticket **{ticket_key}** has been resolved. "
                 f"If you run into any further issues, feel free to reach out. — Aion Support"
             )
+
     # ── n8n / Jira webhook ────────────────────────────────────────────────────
 
     def _trigger_n8n_jira(self, summary: str, description: str, session_id: str):
         webhook_url = os.getenv("N8N_WEBHOOK_URL")
-        payload = {"summary": summary, "description": description, "session_id": session_id}
+        payload = {
+            "summary": summary,
+            "description": description,
+            "session_id": session_id,
+        }
         try:
             response = requests.post(webhook_url, json=payload, timeout=15)
             print(f"[n8n] Status: {response.status_code}")
@@ -352,4 +405,4 @@ class QueryService:
             raise Exception(f"n8n returned {response.status_code}")
         except Exception as e:
             print(f"[n8n] Webhook error: {e}")
-            raise  
+            raise

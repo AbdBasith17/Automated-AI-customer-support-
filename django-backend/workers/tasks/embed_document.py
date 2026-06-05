@@ -1,9 +1,9 @@
+import logging
 
 import requests
 from celery import shared_task
 from django.apps import apps
 from django.conf import settings
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ def embed_document(self, document_id):
         payload = {
             "s3_key": doc.s3_key,
             "bucket_name": settings.AWS_STORAGE_BUCKET_NAME,
-            "collection_name": settings.AI_COLLECTION_NAME,  # move out of hardcode
+            "collection_name": settings.AI_COLLECTION_NAME,
             "doc_metadata": {
                 "document_id": str(doc.id),
                 "title": doc.title,
@@ -48,38 +48,47 @@ def embed_document(self, document_id):
         )
         response.raise_for_status()
 
-        doc.status = "completed"
-        doc.save(update_fields=["status"])
+        doc.status = "indexed"
+        doc.chunk_count = response.json().get("chunks_created", 0)
+        doc.save(update_fields=["status", "chunk_count"])
 
     except DocumentMetadata.DoesNotExist:
-        
+
         logger.critical(f"Document {document_id} not found in database.")
 
     except requests.HTTPError as e:
         status_code = e.response.status_code if e.response is not None else None
 
         if status_code is not None and status_code >= 500:
-        
-            logger.warning(f"AI service {status_code}, retry {self.request.retries}/{self.max_retries}: {e}")
+
+            logger.warning(
+                f"AI service {status_code}, retry {self.request.retries}/{self.max_retries}: {e}"
+            )
             try:
                 raise self.retry(exc=e, countdown=30 * (self.request.retries + 1))
             except self.MaxRetriesExceededError:
-                
+
                 logger.error(f"Max retries exceeded on 5xx for document {document_id}")
                 _mark_failed(doc)
                 raise
         else:
-           
-            logger.error(f"AI service rejected request ({status_code}) for document {document_id}: {e}")
+
+            logger.error(
+                f"AI service rejected request ({status_code}) for document {document_id}: {e}"
+            )
             _mark_failed(doc)
 
     except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
         # Network-level failure -- retryable, separate from HTTPError for clarity
-        logger.warning(f"Network error contacting AI service, retry {self.request.retries}/{self.max_retries}: {e}")
+        logger.warning(
+            f"Network error contacting AI service, retry {self.request.retries}/{self.max_retries}: {e}"
+        )
         try:
             raise self.retry(exc=e, countdown=30 * (self.request.retries + 1))
         except self.MaxRetriesExceededError:
-            logger.error(f"Max retries exceeded on network error for document {document_id}")
+            logger.error(
+                f"Max retries exceeded on network error for document {document_id}"
+            )
             _mark_failed(doc)
             raise
 

@@ -6,12 +6,21 @@ from .models import OTPVerification, User
 
 
 class RegisterSerializer(serializers.Serializer):
-
     first_name = serializers.CharField(max_length=150)
     last_name = serializers.CharField(max_length=150)
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
     password2 = serializers.CharField(write_only=True)
+
+    def validate_first_name(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("First name cannot be blank.")
+        return value.strip()
+
+    def validate_last_name(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Last name cannot be blank.")
+        return value.strip()
 
     def validate_email(self, value):
         email = value.lower()
@@ -27,7 +36,9 @@ class RegisterSerializer(serializers.Serializer):
 
     def validate(self, data):
         if data["password"] != data["password2"]:
-            raise serializers.ValidationError({"password2": "Passwords do not match."})
+            raise serializers.ValidationError(
+                {"password2": ["Passwords do not match."]}
+            )
         return data
 
 

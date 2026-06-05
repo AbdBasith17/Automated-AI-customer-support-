@@ -16,14 +16,49 @@ langchain-chroma
 langchain-groq
 langchain-text-splitters
 
-# Targeted Document Processing (Fixed Versions)
+# Targeted Document Processing 
 pymupdf>=1.24.10         
 pymupdf4llm==0.0.17      
 python-docx==1.1.2       
 markdown==3.6            
-pillow==10.3.0
+
+pillow>=10.2.0
+
+django
+django-environ
+psycopg2-binary
+djangorestframework
+django-cors-headers
+djangorestframework-simplejwt
+django-redis>=5.4.0
+
+google-auth
+google-auth-httplib2
+google-auth-oauthlib
+
+pyotp==2.9.0
+qrcode==7.4.2
 
 
+django-storages
+boto3
+pypdf
+python-docx
+
+
+celery==5.3.6
+redis==5.0.1
+langchain-google-genai
+langchain-text-splitters
+pinecone-client
+flower
+
+
+daphne
+channels
+channels-redis
+
+confluent-kafka>=2.3.0
 celery==5.3.6
 redis==5.0.1
 channels-redis==4.2.0
@@ -31,3 +66,5 @@ asgiref==3.8.1
 
 confluent-kafka>=2.3.0
 pymongo>=4.6.1
+
+tox

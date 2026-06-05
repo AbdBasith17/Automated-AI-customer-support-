@@ -1,16 +1,20 @@
-import os
-import json
 import hashlib
-import redis
+import json
 import logging
+import os
+
+import redis
 
 logger = logging.getLogger(__name__)
 
+
 class CacheService:
     def __init__(self):
-        
+
         redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
-        base_url = redis_url.rsplit("/", 1)[0] if redis_url.count("/") >= 3 else redis_url
+        base_url = (
+            redis_url.rsplit("/", 1)[0] if redis_url.count("/") >= 3 else redis_url
+        )
         self.client = redis.Redis.from_url(f"{base_url}/1")
 
     def _hash_query(self, query: str) -> str:
@@ -27,9 +31,7 @@ class CacheService:
     def set_cached_response(self, query: str, response: dict, expire=86400):
         try:
             self.client.setex(
-                f"rag_cache:{self._hash_query(query)}",
-                expire,
-                json.dumps(response)
+                f"rag_cache:{self._hash_query(query)}", expire, json.dumps(response)
             )
         except Exception as e:
             logger.warning(f"Redis Cache SET Error: {e}")
